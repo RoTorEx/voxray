@@ -1,0 +1,54 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+config.toml
+.env
+.env.*
+!.env.example
+voxray.log
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Node / TypeScript
+node_modules/
+dist/
+build/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Rust
+target/
+
+# Logs / temp
+*.log
+*.call.json
+*.transcript.txt
+*.feedback.txt
+*.record.m4a
+*.record.mov
+*.record.mp4
+tmp/
+temp/
+.cache/
+
+# Local generated junk
+*.local
+
+# Vibecoding Kernel source pointer (local machine path; must not be committed)
+.vibe/KERNEL_SOURCE
+
+
+# Added by cargo
+
+/target

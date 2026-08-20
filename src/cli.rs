@@ -1,0 +1,198 @@
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
+
+#[derive(Debug, Parser)]
+#[command(name = "voxray")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(about = "Store, transcribe, and review call recordings")]
+pub struct Cli {
+    /// Never prompt or read stdin
+    #[arg(long, global = true)]
+    pub non_interactive: bool,
+
+    /// Write exactly one JSON object to stdout
+    #[arg(long, global = true)]
+    pub json: bool,
+
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Commands {
+    /// Copy or move one recording into the calls library
+    #[command(
+        after_help = "Interactive: voxray listen\nNon-interactive: voxray listen --profile sales --recording /path/call.m4a --non-interactive"
+    )]
+    Listen(ListenArgs),
+
+    /// Create transcript.txt and call.json beside one recording
+    #[command(
+        after_help = "Interactive: voxray transcribe\nNon-interactive: voxray transcribe --profile sales --recording /path/call.record.m4a --non-interactive"
+    )]
+    Transcribe(TranscribeArgs),
+
+    /// Create one English feedback.txt from one transcript.txt
+    #[command(
+        after_help = "Interactive: voxray feedback\nNon-interactive: voxray feedback --profile sales --transcript /path/call.transcript.txt --non-interactive"
+    )]
+    Feedback(FeedbackArgs),
+}
+
+#[derive(Debug, Clone, Args, Default)]
+pub struct ProfileArgs {
+    /// Profile whose values prefill the effective settings
+    #[arg(short, long)]
+    pub profile: Option<String>,
+
+    /// Override the profile inbox directory
+    #[arg(long)]
+    pub inbox_dir: Option<PathBuf>,
+
+    /// Override the profile calls directory
+    #[arg(long)]
+    pub calls_dir: Option<PathBuf>,
+
+    /// Override the strftime date prefix; use an empty value for no prefix
+    #[arg(long)]
+    pub date_format: Option<String>,
+
+    /// Override file/folder storage mode
+    #[arg(long, value_enum)]
+    pub mode: Option<ModeArg>,
+
+    /// Override call context used by feedback
+    #[arg(long)]
+    pub call_type: Option<String>,
+
+    /// Override the evaluated participant name
+    #[arg(long)]
+    pub subject_name: Option<String>,
+
+    /// Override the evaluated participant role
+    #[arg(long)]
+    pub subject_role: Option<String>,
+
+    /// Override transcription source language (normally auto)
+    #[arg(long)]
+    pub source_language: Option<String>,
+
+    /// Override the call goal used by feedback
+    #[arg(long)]
+    pub call_goal: Option<String>,
+
+    /// Replace profile speaker IDs; repeat to merge raw IDs into the target
+    #[arg(long = "subject-speaker")]
+    pub subject_speakers: Vec<String>,
+
+    /// Replace profile feedback modules; repeat for multiple modules
+    #[arg(long = "module")]
+    pub modules: Vec<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct ListenArgs {
+    #[command(flatten)]
+    pub profile: ProfileArgs,
+
+    /// Audio or video recording to store
+    #[arg(long)]
+    pub recording: Option<PathBuf>,
+
+    /// Human call name; defaults to the recording basename in non-interactive mode
+    #[arg(long)]
+    pub name: Option<String>,
+
+    /// Remove the source only after the target is verified
+    #[arg(long, conflicts_with = "copy")]
+    pub r#move: bool,
+
+    /// Keep the source (default)
+    #[arg(long, conflicts_with = "move")]
+    pub copy: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct TranscribeArgs {
+    #[command(flatten)]
+    pub profile: ProfileArgs,
+
+    /// Recording to transcribe
+    #[arg(long)]
+    pub recording: Option<PathBuf>,
+
+    /// Safely replace existing transcript.txt and call.json
+    #[arg(long)]
+    pub force: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct FeedbackArgs {
+    #[command(flatten)]
+    pub profile: ProfileArgs,
+
+    /// Plain UTF-8 transcript to analyze
+    #[arg(long)]
+    pub transcript: Option<PathBuf>,
+
+    /// Raw speaker ID belonging to the target; repeat to merge IDs
+    #[arg(long = "target-speaker")]
+    pub target_speakers: Vec<String>,
+
+    /// Safely replace an existing feedback.txt
+    #[arg(long)]
+    pub force: bool,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum ModeArg {
+    Folder,
+    File,
+}
+
+impl From<ModeArg> for crate::config::Mode {
+    fn from(value: ModeArg) -> Self {
+        match value {
+            ModeArg::Folder => crate::config::Mode::Folder,
+            ModeArg::File => crate::config::Mode::File,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_removed_process_command() {
+        assert!(Cli::try_parse_from(["voxray", "process"]).is_err());
+    }
+
+    #[test]
+    fn profile_overrides_are_available_non_interactively() {
+        let cli = Cli::try_parse_from([
+            "voxray",
+            "feedback",
+            "--profile",
+            "sales",
+            "--transcript",
+            "/tmp/call.transcript.txt",
+            "--module",
+            "sales",
+            "--module",
+            "english",
+            "--subject-speaker",
+            "Speaker 1",
+            "--non-interactive",
+            "--json",
+        ])
+        .unwrap();
+        assert!(cli.non_interactive);
+        assert!(cli.json);
+        let Commands::Feedback(args) = cli.command else {
+            panic!("expected feedback")
+        };
+        assert_eq!(args.profile.modules, ["sales", "english"]);
+        assert_eq!(args.profile.subject_speakers, ["Speaker 1"]);
+    }
+}

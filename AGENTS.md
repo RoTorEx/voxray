@@ -56,6 +56,13 @@ Read these only when the task requires them:
 - `docs/ideas/*` — idea triage only.
 - `docs/reports/*` — reports/history only when relevant.
 
+## Release execution
+
+When the user explicitly requests a release, start `make release` unchanged,
+enter the requested version through the running command's stdin, then run
+`make release-push`. Do not pipe the version into the shell command, repeat the
+script's checks manually, or wait for GitHub Actions unless the user asks.
+
 ## Rule priority
 
 1. Current user instruction

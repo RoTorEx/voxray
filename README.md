@@ -196,6 +196,28 @@ make check
 make install-local
 ```
 
+## Release
+
+Prepare a release from a clean `main` branch:
+
+```bash
+make release
+```
+
+Enter the exact `MAJOR.MINOR.PATCH` version when prompted. The command runs the
+checks, updates `Cargo.toml`, `Cargo.lock`, and `CHANGELOG.md`, creates the
+dedicated version-bump commit, and creates the matching annotated `vX.Y.Z` tag.
+
+After reviewing the commit and tag, publish them:
+
+```bash
+make release-push
+```
+
+The pushed tag builds macOS Apple Silicon and Intel archives in GitHub Actions
+and publishes them to the matching GitHub Release. Ordinary pushes to `main` do
+not publish a release.
+
 ## Docs
 
 - [Feedback contract](docs/features/feedback.md)

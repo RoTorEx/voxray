@@ -1,0 +1,74 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: aarch64
+          - runner: macos-15-intel
+            arch: x86_64
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)
+          test "$GITHUB_REF_NAME" = "v$version"
+
+      - name: Build release assets
+        env:
+          DIST_DIR: ${{ runner.temp }}/voxray-dist
+        run: make release-publish
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v6
+        with:
+          name: voxray-macos-${{ matrix.arch }}
+          path: ${{ runner.temp }}/voxray-dist/*
+          if-no-files-found: error
+
+  publish:
+    name: publish-github-release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/download-artifact@v7
+        with:
+          path: release-assets
+          pattern: voxray-macos-*
+          merge-multiple: true
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          files=(release-assets/*)
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+              --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi

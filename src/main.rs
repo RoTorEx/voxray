@@ -18,6 +18,7 @@ mod logs;
 mod storage;
 mod transcribe;
 mod transcript;
+mod update;
 mod workflow;
 
 use cli::{Cli, Commands, ListenArgs, ProfileArgs, TranscribeArgs};
@@ -123,6 +124,19 @@ fn main() {
 }
 
 fn run(cli: Cli) -> Result<CommandOutcome> {
+    if matches!(&cli.command, Commands::Update) {
+        let binary = update::run()?;
+        return Ok(CommandOutcome {
+            status: "ok",
+            command: "update",
+            result: "installed latest release".to_string(),
+            effective: json!({"source": "latest GitHub Release"}),
+            artifacts: BTreeMap::from([("binary".to_string(), binary.display().to_string())]),
+            quick_review: None,
+            through: None,
+            steps: Vec::new(),
+        });
+    }
     let config = Config::load()?;
     let interactive = !cli.non_interactive;
     match cli.command {
@@ -155,6 +169,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 interactive,
             )
         }
+        Commands::Update => unreachable!("update returns before configuration is loaded"),
     }
 }
 

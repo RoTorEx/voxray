@@ -22,6 +22,9 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
+    /// Install the latest GitHub Release
+    Update,
+
     /// Copy or move one recording into the calls library
     #[command(
         after_help = "Interactive: voxray listen\nNon-interactive: voxray listen --profile sales --recording /path/call.m4a --non-interactive"
@@ -204,6 +207,14 @@ mod tests {
     #[test]
     fn rejects_removed_process_command() {
         assert!(Cli::try_parse_from(["voxray", "process"]).is_err());
+    }
+
+    #[test]
+    fn parses_update_command() {
+        assert!(matches!(
+            Cli::try_parse_from(["voxray", "update"]).unwrap().command,
+            Commands::Update
+        ));
     }
 
     #[test]

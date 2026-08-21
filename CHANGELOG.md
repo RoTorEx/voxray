@@ -6,6 +6,8 @@ Tracks real product progress.
 
 ### Added
 
+- Added push/PR CI, checksum-verified GitHub Release installation, and
+  `voxray update` for future releases.
 - Added a guarded `make release` / `make release-push` flow with exact semantic
   version input, dedicated version commits and annotated tags, plus tag-driven
   GitHub Releases for macOS Apple Silicon and Intel archives.

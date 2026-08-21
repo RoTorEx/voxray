@@ -18,7 +18,27 @@ continue through a later stage with `--through`.
 - `ffmpeg`
 - an OpenAI API key for `feedback`
 
-## Install locally
+## Install
+
+The repository is private, so installation needs a GitHub token with access:
+
+```bash
+export GH_INSTALLER_TOKEN="$(gh auth token)"
+curl -fsSL -H "Authorization: Bearer $GH_INSTALLER_TOKEN" \
+  https://github.com/RoTorEx/voxray/releases/latest/download/voxray-install.sh \
+  -o /tmp/voxray-install.sh
+sh /tmp/voxray-install.sh
+```
+
+The installer verifies the archive checksum, installs into
+`~/.x-cli-voxray`, preserves an existing config, and saves the token there as
+`gh-token` with mode `0600`. Later updates are one command:
+
+```bash
+voxray update
+```
+
+For a development build instead:
 
 ```bash
 make install-local
@@ -215,8 +235,9 @@ make release-push
 ```
 
 The pushed tag builds macOS Apple Silicon and Intel archives in GitHub Actions
-and publishes them to the matching GitHub Release. Ordinary pushes to `main` do
-not publish a release.
+and publishes them, their SHA-256 checksums, and `voxray-install.sh` to the
+matching GitHub Release. CI runs `make check` on pushes and pull requests;
+ordinary pushes to `main` do not publish a release.
 
 ## Docs
 

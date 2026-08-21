@@ -74,7 +74,7 @@ release-publish: cargo-target-dir dist-dir
 	case "$$(uname -m)" in arm64) arch="aarch64" ;; x86_64) arch="x86_64" ;; *) echo "ERROR: unsupported architecture $$(uname -m)" >&2; exit 1 ;; esac; \
 	archive="$(BIN_NAME)-macos-$$arch.tar.gz"; \
 	cargo build --release --locked; \
-	tar -C "$(CARGO_TARGET_DIR)/release" -czf "$(DIST_DIR)/$$archive" "$(BIN_NAME)"; \
+	tar -czf "$(DIST_DIR)/$$archive" -C "$(CARGO_TARGET_DIR)/release" "$(BIN_NAME)" -C "$(CURDIR)" config.example.toml; \
 	cd "$(DIST_DIR)"; \
 	shasum -a 256 "$$archive" > "$$archive.sha256"; \
 	echo "Created $(DIST_DIR)/$$archive"

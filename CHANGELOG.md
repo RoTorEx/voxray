@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-22
+
 ### Changed
 
 - Made public GitHub Release installation token-free and documented the

@@ -20,19 +20,22 @@ continue through a later stage with `--through`.
 
 ## Install
 
-The repository is private, so installation needs a GitHub token with access:
+Install the latest GitHub Release:
 
 ```bash
-export GH_INSTALLER_TOKEN="$(gh auth token)"
-curl -fsSL -H "Authorization: Bearer $GH_INSTALLER_TOKEN" \
-  https://github.com/RoTorEx/voxray/releases/latest/download/voxray-install.sh \
-  -o /tmp/voxray-install.sh
-sh /tmp/voxray-install.sh
+curl -fsSL https://raw.githubusercontent.com/RoTorEx/voxray/main/scripts/install.sh | sh
 ```
 
-The installer verifies the archive checksum, installs into
-`~/.x-cli-voxray`, preserves an existing config, and saves the token there as
-`gh-token` with mode `0600`. Later updates are one command:
+The installer verifies the archive checksum, installs the binary as
+`~/.x-cli-voxray/bin/voxray`, preserves an existing config, and adds the `bin`
+directory to `PATH` in `~/.zshrc` or `~/.bashrc`. Restart the shell, then verify
+it:
+
+```bash
+voxray --version
+```
+
+Later updates are one command:
 
 ```bash
 voxray update

@@ -150,9 +150,7 @@ fn default_languages() -> Vec<String> {
 
 impl Config {
     pub fn path() -> Result<PathBuf> {
-        let exe = std::env::current_exe().context("Failed to determine executable path")?;
-        let dir = exe.parent().context("Executable has no parent directory")?;
-        Ok(dir.join("config.toml"))
+        Ok(app_home()?.join("config.toml"))
     }
 
     pub fn load() -> Result<Self> {
@@ -208,9 +206,42 @@ impl Config {
     }
 }
 
+pub fn app_home() -> Result<PathBuf> {
+    let exe = std::env::current_exe().context("Failed to determine executable path")?;
+    app_home_from_executable(&exe)
+}
+
+fn app_home_from_executable(exe: &std::path::Path) -> Result<PathBuf> {
+    let dir = exe.parent().context("Executable has no parent directory")?;
+    if dir.file_name().is_some_and(|name| name == "bin") {
+        return dir
+            .parent()
+            .map(std::path::Path::to_path_buf)
+            .context("Executable bin directory has no parent");
+    }
+    Ok(dir.to_path_buf())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn installed_binary_uses_parent_of_bin_as_app_home() {
+        assert_eq!(
+            app_home_from_executable(std::path::Path::new("/Users/you/.x-cli-voxray/bin/voxray"))
+                .unwrap(),
+            PathBuf::from("/Users/you/.x-cli-voxray")
+        );
+    }
+
+    #[test]
+    fn development_binary_uses_its_direct_parent() {
+        assert_eq!(
+            app_home_from_executable(std::path::Path::new("/tmp/target/debug/voxray")).unwrap(),
+            PathBuf::from("/tmp/target/debug")
+        );
+    }
 
     #[test]
     fn reads_legacy_feedback_aliases() {

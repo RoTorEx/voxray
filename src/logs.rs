@@ -4,9 +4,7 @@ use std::io::Write;
 use std::path::PathBuf;
 
 pub fn path() -> Result<PathBuf> {
-    let exe = std::env::current_exe().context("Failed to determine executable path")?;
-    let dir = exe.parent().context("Executable has no parent directory")?;
-    Ok(dir.join("voxray.log"))
+    Ok(crate::config::app_home()?.join("voxray.log"))
 }
 
 fn write(level: &str, message: &str) -> Result<()> {

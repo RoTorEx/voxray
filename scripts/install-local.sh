@@ -7,11 +7,16 @@ install_dir="${2:?install directory is required}"
 
 mkdir -p "$install_dir"
 chmod 0700 "$install_dir"
-temporary="$install_dir/.voxray-install-$$"
+bin_dir="$install_dir/bin"
+mkdir -p "$bin_dir"
+temporary="$bin_dir/.voxray-install-$$"
 trap 'rm -f "$temporary"' EXIT HUP INT TERM
 cp "$binary" "$temporary"
 chmod 0755 "$temporary"
-mv "$temporary" "$install_dir/voxray"
+mv "$temporary" "$bin_dir/voxray"
+if [ -f "$install_dir/voxray" ]; then
+    rm "$install_dir/voxray"
+fi
 trap - EXIT HUP INT TERM
 
 if [ ! -f "$install_dir/config.toml" ]; then
@@ -21,18 +26,18 @@ fi
 
 profile=""
 case "${SHELL:-}" in
-    */zsh) profile="$HOME/.zshrc" ;;
     */bash) profile="$HOME/.bashrc" ;;
+    *) profile="$HOME/.zshrc" ;;
 esac
 if [ "$install_dir" = "$HOME/.x-cli-voxray" ]; then
-    line='export PATH="$HOME/.x-cli-voxray:$PATH"'
+    line='export PATH="$HOME/.x-cli-voxray/bin:$PATH"'
 else
-    line="export PATH=\"$install_dir:\$PATH\""
+    line="export PATH=\"$bin_dir:\$PATH\""
 fi
 if [ -n "$profile" ]; then
     touch "$profile"
     grep -Fqx "$line" "$profile" || printf '\n# x-cli-voxray\n%s\n' "$line" >> "$profile"
 fi
 
-echo "Installed $install_dir/voxray"
-echo "For this shell: export PATH=\"$install_dir:\$PATH\""
+echo "Installed $bin_dir/voxray"
+echo "For this shell: export PATH=\"$bin_dir:\$PATH\""

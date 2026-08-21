@@ -4,7 +4,7 @@ set -eu
 repo="${VOXRAY_INSTALL_REPO:-RoTorEx/voxray}"
 version="${VOXRAY_VERSION:-latest}"
 install_dir="${VOXRAY_INSTALL_DIR:-$HOME/.x-cli-voxray}"
-token_file="${VOXRAY_GITHUB_TOKEN_FILE:-$HOME/.x-cli-voxray/gh-token}"
+token_file_override="${VOXRAY_GITHUB_TOKEN_FILE:-}"
 archive_path=""
 update_path=1
 
@@ -12,9 +12,8 @@ usage() {
     cat <<'EOF'
 Usage: voxray-install.sh [--version VERSION|latest] [--install-dir PATH] [--archive PATH] [--no-path-update]
 
-Installs a macOS GitHub Release, or a local release archive. For the private
-repository, set GH_INSTALLER_TOKEN. The token is saved with mode 0600 so
-`voxray update` can use it later.
+Installs a macOS GitHub Release, or a local release archive. For a private fork,
+set GH_INSTALLER_TOKEN; it is saved with mode 0600 for future updates.
 EOF
 }
 
@@ -28,6 +27,9 @@ while [ "$#" -gt 0 ]; do
         *) echo "ERROR: unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
 done
+
+bin_dir="$install_dir/bin"
+token_file="${token_file_override:-$install_dir/gh-token}"
 
 [ "$(uname -s)" = "Darwin" ] || { echo "ERROR: voxray releases currently support macOS only" >&2; exit 1; }
 case "$(uname -m)" in
@@ -59,10 +61,6 @@ download() {
 if [ -n "$archive_path" ]; then
     cp "$archive_path" "$temp_dir/$archive"
 else
-    [ -n "$token" ] || {
-        echo "ERROR: private release download requires GH_INSTALLER_TOKEN" >&2
-        exit 1
-    }
     if [ "$version" = latest ]; then
         base="https://github.com/$repo/releases/latest/download"
     else
@@ -78,11 +76,14 @@ fi
 tar -xzf "$temp_dir/$archive" -C "$temp_dir"
 [ -x "$temp_dir/voxray" ] || { echo "ERROR: archive does not contain voxray" >&2; exit 1; }
 
-mkdir -p "$install_dir"
+mkdir -p "$bin_dir"
 chmod 0700 "$install_dir"
-cp "$temp_dir/voxray" "$install_dir/.voxray-install-$$"
-chmod 0755 "$install_dir/.voxray-install-$$"
-mv "$install_dir/.voxray-install-$$" "$install_dir/voxray"
+cp "$temp_dir/voxray" "$bin_dir/.voxray-install-$$"
+chmod 0755 "$bin_dir/.voxray-install-$$"
+mv "$bin_dir/.voxray-install-$$" "$bin_dir/voxray"
+if [ -f "$install_dir/voxray" ]; then
+    rm "$install_dir/voxray"
+fi
 if [ ! -f "$install_dir/config.toml" ] && [ -f "$temp_dir/config.example.toml" ]; then
     cp "$temp_dir/config.example.toml" "$install_dir/config.toml"
     chmod 0600 "$install_dir/config.toml"
@@ -102,13 +103,13 @@ if [ "$update_path" -eq 1 ]; then
         *) shell_rc="$HOME/.zshrc" ;;
     esac
     if [ "$install_dir" = "$HOME/.x-cli-voxray" ]; then
-        path_line='export PATH="$HOME/.x-cli-voxray:$PATH"'
+        path_line='export PATH="$HOME/.x-cli-voxray/bin:$PATH"'
     else
-        path_line="export PATH=\"$install_dir:\$PATH\""
+        path_line="export PATH=\"$bin_dir:\$PATH\""
     fi
     touch "$shell_rc"
     grep -Fqx "$path_line" "$shell_rc" || printf '\n# x-cli-voxray\n%s\n' "$path_line" >> "$shell_rc"
 fi
 
-echo "Installed $install_dir/voxray"
-echo "Run: export PATH=\"$install_dir:\$PATH\""
+echo "Installed $bin_dir/voxray"
+echo "Run: export PATH=\"$bin_dir:\$PATH\""

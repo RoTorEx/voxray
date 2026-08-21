@@ -47,7 +47,7 @@ jobs:
             --archive "$DIST_DIR/voxray-macos-$ARCH.tar.gz" \
             --install-dir "$INSTALL_DIR" \
             --no-path-update
-          "$INSTALL_DIR/voxray" --version
+          "$INSTALL_DIR/bin/voxray" --version
 
       - name: Upload release assets
         uses: actions/upload-artifact@v6

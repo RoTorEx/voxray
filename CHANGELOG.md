@@ -4,6 +4,13 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Made public GitHub Release installation token-free and documented the
+  one-command installer, which stores the binary under
+  `~/.x-cli-voxray/bin/voxray` and adds that directory to the user's shell
+  `PATH`.
+
 ## [0.2.0] - 2026-08-22
 
 ### Added

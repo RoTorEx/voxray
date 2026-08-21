@@ -12,11 +12,7 @@ const INSTALLER_URL: &str =
     "https://github.com/RoTorEx/voxray/releases/latest/download/voxray-install.sh";
 
 pub fn run() -> Result<PathBuf> {
-    let install_dir = env::current_exe()
-        .context("Failed to determine the current executable")?
-        .parent()
-        .context("Executable has no parent directory")?
-        .to_path_buf();
+    let install_dir = crate::config::app_home()?;
     let token_path = install_dir.join("gh-token");
     let token = github_token(&token_path)?;
     let temp_dir = temp_dir()?;
@@ -37,7 +33,7 @@ pub fn run() -> Result<PathBuf> {
         if !status.success() {
             bail!("installer exited with {status}");
         }
-        Ok(install_dir.join("voxray"))
+        Ok(install_dir.join("bin/voxray"))
     })();
 
     let _ = fs::remove_dir_all(temp_dir);
@@ -49,9 +45,9 @@ fn download_installer(path: &Path, token: Option<&str>) -> Result<()> {
     if let Some(token) = token {
         request = request.set("Authorization", &format!("Bearer {token}"));
     }
-    let response = request.call().with_context(
-        || "Failed to download the installer; set GH_INSTALLER_TOKEN for this private repository",
-    )?;
+    let response = request
+        .call()
+        .context("Failed to download the latest release installer")?;
     let mut bytes = Vec::new();
     response
         .into_reader()

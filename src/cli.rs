@@ -25,6 +25,9 @@ pub enum Commands {
     /// Install the latest GitHub Release
     Update,
 
+    /// Securely save the OpenAI API token
+    SetupAiToken,
+
     /// Copy or move one recording into the calls library
     #[command(
         after_help = "Interactive: voxray inbox\nNon-interactive: voxray inbox --profile sales --recording /path/call.m4a --non-interactive"
@@ -214,6 +217,16 @@ mod tests {
         assert!(matches!(
             Cli::try_parse_from(["voxray", "update"]).unwrap().command,
             Commands::Update
+        ));
+    }
+
+    #[test]
+    fn parses_setup_ai_token_command() {
+        assert!(matches!(
+            Cli::try_parse_from(["voxray", "setup-ai-token"])
+                .unwrap()
+                .command,
+            Commands::SetupAiToken
         ));
     }
 

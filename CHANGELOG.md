@@ -10,6 +10,8 @@ Tracks real product progress.
 
 ### Changed
 
+- Added interactive `setup-ai-token` with hidden confirmation and atomic `0600`
+  storage, plus automatic 30-day log retention.
 - Renamed the recording-entry command and pipeline stage from `listen` to
   `inbox`; the removed `listen` spelling is no longer accepted.
 - Made public GitHub Release installation token-free and documented the

@@ -809,10 +809,19 @@ fn read_api_key() -> Result<String> {
     {
         return Ok(key.trim().to_string());
     }
-    let env_path = Config::path()?
+    let app_home = Config::path()?
         .parent()
         .context("Config path has no parent directory")?
-        .join(".env");
+        .to_path_buf();
+    let token_path = app_home.join("openai-api-key");
+    if token_path.exists() {
+        let key = fs::read_to_string(&token_path)
+            .with_context(|| format!("Failed to read {}", token_path.display()))?;
+        if !key.trim().is_empty() {
+            return Ok(key.trim().to_string());
+        }
+    }
+    let env_path = app_home.join(".env");
     if env_path.exists() {
         let content = fs::read_to_string(&env_path)
             .with_context(|| format!("Failed to read {}", env_path.display()))?;
@@ -829,10 +838,7 @@ fn read_api_key() -> Result<String> {
             }
         }
     }
-    bail!(
-        "OPENAI_API_KEY is missing; set it in the environment or {}",
-        env_path.display()
-    )
+    bail!("OPENAI_API_KEY is missing; run `voxray setup-ai-token` or set it in the environment")
 }
 
 #[cfg(test)]

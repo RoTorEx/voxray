@@ -60,11 +60,26 @@ replace the example paths and profile values. Runtime files are:
 ~/.x-cli-voxray/voxray.log
 ```
 
-Set the API key through `OPENAI_API_KEY` or in `.env`:
+Save the OpenAI API token interactively. Input is hidden and confirmed; the
+token is stored as `~/.x-cli-voxray/openai-api-key` with mode `0600`:
+
+```bash
+voxray setup-ai-token
+```
+
+If a token is already configured, Enter keeps it; explicit confirmation is
+required before replacement.
+
+`OPENAI_API_KEY` and the legacy `.env` file are also supported:
 
 ```dotenv
 OPENAI_API_KEY=...
 ```
+
+`voxray.log` contains command start/end status and duration, errors, artifact
+paths and source actions, transcription paths, and analysis model/module timing.
+It never logs API tokens, transcript contents, or model responses. Entries older
+than 30 days are removed automatically when a command starts.
 
 Profiles prefill command parameters. Every working profile value has the same
 CLI override in interactive and non-interactive operation. Resolution order is:

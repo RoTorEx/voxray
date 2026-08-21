@@ -15,6 +15,7 @@ mod config;
 mod inbox;
 mod logs;
 mod media;
+mod setup;
 mod storage;
 mod transcribe;
 mod transcript;
@@ -137,6 +138,30 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
             steps: Vec::new(),
         });
     }
+    if matches!(&cli.command, Commands::SetupAiToken) {
+        if cli.non_interactive {
+            bail!("setup-ai-token is interactive only");
+        }
+        let setup = setup::run()?;
+        return Ok(CommandOutcome {
+            status: "ok",
+            command: "setup-ai-token",
+            result: if setup.changed {
+                "saved OpenAI API token"
+            } else {
+                "kept existing OpenAI API token"
+            }
+            .to_string(),
+            effective: json!({"permissions": "0600"}),
+            artifacts: BTreeMap::from([(
+                "token_file".to_string(),
+                setup.path.display().to_string(),
+            )]),
+            quick_review: None,
+            through: None,
+            steps: Vec::new(),
+        });
+    }
     let config = Config::load()?;
     let interactive = !cli.non_interactive;
     match cli.command {
@@ -170,6 +195,9 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
             )
         }
         Commands::Update => unreachable!("update returns before configuration is loaded"),
+        Commands::SetupAiToken => {
+            unreachable!("setup-ai-token returns before configuration is loaded")
+        }
     }
 }
 

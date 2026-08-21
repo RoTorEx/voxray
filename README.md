@@ -4,11 +4,11 @@ Personal macOS CLI for storing, transcribing, and reviewing calls.
 
 Voxray has three commands:
 
-- `voxray listen` stores one recording.
+- `voxray inbox` stores one recording from an inbox or explicit path.
 - `voxray transcribe` creates one `transcript.txt` and one technical `call.json`.
 - `voxray feedback` creates one English `feedback.txt` from a transcript.
 
-Each command runs independently by default. `listen` and `transcribe` can also
+Each command runs independently by default. `inbox` and `transcribe` can also
 continue through a later stage with `--through`.
 
 ## Requirements
@@ -94,18 +94,18 @@ Common overrides include:
 --module (repeatable)
 ```
 
-## Listen
+## Inbox
 
 Interactive:
 
 ```bash
-voxray listen
+voxray inbox
 ```
 
 Non-interactive:
 
 ```bash
-voxray listen --profile sales \
+voxray inbox --profile sales \
   --recording "/path/call.m4a" \
   --name "Atlas IQ — Tomas" \
   --copy --non-interactive
@@ -159,16 +159,16 @@ module with `store=false`; output is English plain text, not Markdown.
 
 ## Pipeline
 
-Run from `listen` through transcription:
+Run from `inbox` through transcription:
 
 ```bash
-voxray listen --through transcribe
+voxray inbox --through transcribe
 ```
 
 Run the complete pipeline from recording storage through feedback:
 
 ```bash
-voxray listen --through feedback
+voxray inbox --through feedback
 ```
 
 Continue from an existing recording through feedback:

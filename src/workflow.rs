@@ -4,7 +4,7 @@ use serde::Serialize;
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Stage {
-    Listen,
+    Inbox,
     Transcribe,
     Feedback,
 }
@@ -12,7 +12,7 @@ pub enum Stage {
 impl Stage {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Listen => "listen",
+            Self::Inbox => "inbox",
             Self::Transcribe => "transcribe",
             Self::Feedback => "feedback",
         }
@@ -34,7 +34,7 @@ impl Plan {
                 target.as_str()
             );
         }
-        let stages = [Stage::Listen, Stage::Transcribe, Stage::Feedback]
+        let stages = [Stage::Inbox, Stage::Transcribe, Stage::Feedback]
             .into_iter()
             .filter(|stage| *stage >= start && *stage <= target)
             .collect();
@@ -67,10 +67,10 @@ mod tests {
 
     #[test]
     fn plans_every_stage_through_target() {
-        let plan = Plan::new(Stage::Listen, Some(Stage::Feedback)).unwrap();
+        let plan = Plan::new(Stage::Inbox, Some(Stage::Feedback)).unwrap();
         assert_eq!(
             plan.stages,
-            [Stage::Listen, Stage::Transcribe, Stage::Feedback]
+            [Stage::Inbox, Stage::Transcribe, Stage::Feedback]
         );
         assert_eq!(plan.target(), Stage::Feedback);
         assert!(plan.includes(Stage::Transcribe));
@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn rejects_backward_pipeline() {
-        let error = Plan::new(Stage::Transcribe, Some(Stage::Listen)).unwrap_err();
+        let error = Plan::new(Stage::Transcribe, Some(Stage::Inbox)).unwrap_err();
         assert!(
             error
                 .to_string()

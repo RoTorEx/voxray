@@ -49,7 +49,7 @@ pub fn run(
 ) -> Result<TranscribeResult> {
     call::validate_file(recording, "Recording")?;
     call::validate_file(transcription_input, "Transcription input")?;
-    if !crate::inbox::is_media_file(transcription_input) {
+    if !crate::media::is_media_file(transcription_input) {
         bail!(
             "Unsupported transcription input type: {}",
             transcription_input.display()

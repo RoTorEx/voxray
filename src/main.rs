@@ -13,15 +13,15 @@ mod call;
 mod cli;
 mod config;
 mod inbox;
-mod listen;
 mod logs;
+mod media;
 mod storage;
 mod transcribe;
 mod transcript;
 mod update;
 mod workflow;
 
-use cli::{Cli, Commands, ListenArgs, ProfileArgs, TranscribeArgs};
+use cli::{Cli, Commands, InboxArgs, ProfileArgs, TranscribeArgs};
 use config::{Config, Mode, Profile};
 use workflow::{Plan, Stage};
 
@@ -140,11 +140,11 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
     let config = Config::load()?;
     let interactive = !cli.non_interactive;
     match cli.command {
-        Commands::Listen(args) => {
-            let plan = Plan::new(Stage::Listen, args.through.map(Into::into))?;
+        Commands::Inbox(args) => {
+            let plan = Plan::new(Stage::Inbox, args.through.map(Into::into))?;
             let (profile_name, profile) =
                 effective_profile(&config, args.profile.clone(), interactive)?;
-            run_from_listen(&config, &profile_name, &profile, args, plan, interactive)
+            run_from_inbox(&config, &profile_name, &profile, args, plan, interactive)
         }
         Commands::Transcribe(args) => {
             let plan = Plan::new(Stage::Transcribe, args.through.map(Into::into))?;
@@ -173,11 +173,11 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
     }
 }
 
-fn run_from_listen(
+fn run_from_inbox(
     config: &Config,
     profile_name: &str,
     profile: &Profile,
-    args: ListenArgs,
+    args: InboxArgs,
     plan: Plan,
     interactive: bool,
 ) -> Result<CommandOutcome> {
@@ -200,9 +200,9 @@ fn run_from_listen(
         args.r#move
     };
 
-    let (listen_outcome, recording) =
-        run_listen_step(profile_name, profile, source, name, move_source)?;
-    let mut outcomes = vec![listen_outcome];
+    let (inbox_outcome, recording) =
+        run_inbox_step(profile_name, profile, source, name, move_source)?;
+    let mut outcomes = vec![inbox_outcome];
     let mut transcript = None;
 
     if plan.includes(Stage::Transcribe) {
@@ -222,7 +222,7 @@ fn run_from_listen(
             interactive,
         )?);
     }
-    Ok(finish_workflow(Stage::Listen, &plan, outcomes))
+    Ok(finish_workflow(Stage::Inbox, &plan, outcomes))
 }
 
 fn run_from_transcribe(
@@ -255,14 +255,14 @@ fn run_from_transcribe(
     Ok(finish_workflow(Stage::Transcribe, &plan, outcomes))
 }
 
-fn run_listen_step(
+fn run_inbox_step(
     profile_name: &str,
     profile: &Profile,
     source: PathBuf,
     name: String,
     move_source: bool,
 ) -> Result<(CommandOutcome, TranscriptionInput)> {
-    let plan = listen::plan(&source, &name, profile)?;
+    let plan = inbox::plan(&source, &name, profile)?;
     let effective = effective_json(
         profile_name,
         profile,
@@ -274,8 +274,8 @@ fn run_listen_step(
             "derived_audio": plan.derived_audio,
         }),
     );
-    show_effective("listen", &effective);
-    let result = listen::run(&source, &name, move_source, profile)?;
+    show_effective("inbox", &effective);
+    let result = inbox::run(&source, &name, move_source, profile)?;
     let transcription_input = TranscriptionInput {
         recording: result.recording.clone(),
         media: result.transcription_input().to_path_buf(),
@@ -288,7 +288,7 @@ fn run_listen_step(
         artifacts.insert("audio".to_string(), path.display().to_string());
     }
     Ok((
-        step_outcome("listen", "created".to_string(), effective, artifacts, None),
+        step_outcome("inbox", "created".to_string(), effective, artifacts, None),
         transcription_input,
     ))
 }
@@ -650,7 +650,7 @@ fn collect_paths(directory: &Path, media: bool, output: &mut Vec<PathBuf>) -> Re
                 let child = child?.path();
                 if child.is_file()
                     && if media {
-                        inbox::is_media_file(&child)
+                        media::is_media_file(&child)
                     } else {
                         is_transcript(&child)
                     }
@@ -660,7 +660,7 @@ fn collect_paths(directory: &Path, media: bool, output: &mut Vec<PathBuf>) -> Re
             }
         } else if path.is_file()
             && if media {
-                inbox::is_media_file(&path)
+                media::is_media_file(&path)
             } else {
                 is_transcript(&path)
             }

@@ -8,6 +8,8 @@ Tracks real product progress.
 
 ### Changed
 
+- Renamed the recording-entry command and pipeline stage from `listen` to
+  `inbox`; the removed `listen` spelling is no longer accepted.
 - Made public GitHub Release installation token-free and documented the
   one-command installer, which stores the binary under
   `~/.x-cli-voxray/bin/voxray` and adds that directory to the user's shell

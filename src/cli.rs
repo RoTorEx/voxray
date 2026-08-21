@@ -27,9 +27,9 @@ pub enum Commands {
 
     /// Copy or move one recording into the calls library
     #[command(
-        after_help = "Interactive: voxray listen\nNon-interactive: voxray listen --profile sales --recording /path/call.m4a --non-interactive"
+        after_help = "Interactive: voxray inbox\nNon-interactive: voxray inbox --profile sales --recording /path/call.m4a --non-interactive"
     )]
-    Listen(ListenArgs),
+    Inbox(InboxArgs),
 
     /// Create transcript.txt and call.json beside one recording
     #[command(
@@ -96,7 +96,7 @@ pub struct ProfileArgs {
 }
 
 #[derive(Debug, Args)]
-pub struct ListenArgs {
+pub struct InboxArgs {
     #[command(flatten)]
     pub profile: ProfileArgs,
 
@@ -118,7 +118,7 @@ pub struct ListenArgs {
 
     /// Continue the pipeline through this stage
     #[arg(long, value_enum)]
-    pub through: Option<ListenThroughArg>,
+    pub through: Option<InboxThroughArg>,
 }
 
 #[derive(Debug, Args)]
@@ -164,7 +164,7 @@ pub enum ModeArg {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-pub enum ListenThroughArg {
+pub enum InboxThroughArg {
     Transcribe,
     Feedback,
 }
@@ -174,11 +174,11 @@ pub enum TranscribeThroughArg {
     Feedback,
 }
 
-impl From<ListenThroughArg> for Stage {
-    fn from(value: ListenThroughArg) -> Self {
+impl From<InboxThroughArg> for Stage {
+    fn from(value: InboxThroughArg) -> Self {
         match value {
-            ListenThroughArg::Transcribe => Self::Transcribe,
-            ListenThroughArg::Feedback => Self::Feedback,
+            InboxThroughArg::Transcribe => Self::Transcribe,
+            InboxThroughArg::Feedback => Self::Feedback,
         }
     }
 }
@@ -246,10 +246,10 @@ mod tests {
     }
 
     #[test]
-    fn parses_listen_through_feedback() {
+    fn parses_inbox_through_feedback() {
         let cli = Cli::try_parse_from([
             "voxray",
-            "listen",
+            "inbox",
             "--recording",
             "/tmp/call.m4a",
             "--through",
@@ -257,10 +257,10 @@ mod tests {
             "--non-interactive",
         ])
         .unwrap();
-        let Commands::Listen(args) = cli.command else {
-            panic!("expected listen")
+        let Commands::Inbox(args) = cli.command else {
+            panic!("expected inbox")
         };
-        assert_eq!(args.through, Some(ListenThroughArg::Feedback));
+        assert_eq!(args.through, Some(InboxThroughArg::Feedback));
     }
 
     #[test]
@@ -283,6 +283,11 @@ mod tests {
 
     #[test]
     fn rejects_backward_pipeline_at_cli_boundary() {
-        assert!(Cli::try_parse_from(["voxray", "transcribe", "--through", "listen"]).is_err());
+        assert!(Cli::try_parse_from(["voxray", "transcribe", "--through", "inbox"]).is_err());
+    }
+
+    #[test]
+    fn rejects_removed_listen_command() {
+        assert!(Cli::try_parse_from(["voxray", "listen"]).is_err());
     }
 }

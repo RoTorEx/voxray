@@ -10,36 +10,18 @@ Do not read the parent kernel repo outside this repository during normal work.
 
 <!-- VIBE:KERNEL_ROUTING_START -->
 
-This project uses **local copies** of the Vibecoding Kernel instructions under `.vibe/kernel/`.
+This project uses committed local copies of the Vibecoding Kernel.
 
-- Read the **full local files** (no summaries).
-- Do **not** read the parent kernel repo outside this repository during normal work.
-- Do **not** edit `.vibe/kernel/*` manually.
-- If present, `.githooks/*` is managed by the kernel; refresh it via `make vibe-pull`.
-- If a kernel rule should change, append a proposal to `<KERNEL_SOURCE>/PROPOSALS.md` (find the parent path in `.vibe/KERNEL_SOURCE`).
-- If present, `TASK.md` is the repo task queue (process tasks in order; remove completed task sections).
-- If present, `CHANGELOG.md` tracks release progress (update on releases).
-
-Routing:
-
-- Required first read:
-  - `.vibe/kernel/PRINCIPLES.md`
-  - `.vibe/kernel/AI_WORKFLOW.md`
-  - `.vibe/kernel/CONTEXT_ROUTING.md`
-
-- Conditional reads:
-  - `.vibe/kernel/SETUP.md` — when bootstrapping, standardizing, repairing, or auditing Vibecoding setup.
-  - `.vibe/kernel/DOCS_CONVENTIONS.md` — when editing documentation.
-  - `.vibe/kernel/COMMAND_INTERFACE.md` — when editing commands/scripts/Makefile/tooling.
-  - `.vibe/kernel/examples/GITHUB_RELEASES.md` — when editing release CI/CD, GitHub Actions release workflows, or GitHub Release publishing.
-  - `.vibe/kernel/examples/CLI_APPS.md` — when editing CLI install, self-update, version, PATH, runtime home, or private update token behavior.
-  - `.vibe/kernel/examples/DIST_ARTIFACTS.md` — when editing generated `dist/` output, bundle/package artifacts, or distribution build paths.
-  - `.vibe/kernel/examples/RUST_PROJECTS.md` — when editing Rust/Cargo commands, Cargo config, or build/check/test/lint behavior.
-  - `.vibe/kernel/CHANGE_CONVENTIONS.md` — when preparing commits/reports/tags/releases.
-  - `.vibe/kernel/SECURITY_BOUNDARIES.md` — when touching secrets/env/network/logging/storage/auth/deployment/safety.
-
-- Other kernel files:
-  - `.vibe/kernel/*.md` — only when `CONTEXT_ROUTING.md` routes you there or the task explicitly requires it.
+- Always read `.vibe/kernel/OPERATING.md` before normal project work.
+- For version, tag, publish, or release work, also read
+  `.vibe/kernel/RELEASE.md`.
+- For user corrections, instruction conflicts, reusable agent-workflow lessons,
+  kernel proposals, or a newly pulled kernel version, also read
+  `.vibe/kernel/EVOLUTION.md`.
+- For product behavior or domain logic, read `BUSINESS.md` and only the relevant
+  module from `business/*`.
+- Do not edit `.vibe/kernel/*` manually or read the parent kernel during normal
+  work. Refresh the local copy with `make vibe-pull`.
 
 <!-- VIBE:KERNEL_ROUTING_END -->
 

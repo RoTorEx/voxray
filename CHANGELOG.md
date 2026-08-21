@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-22
+
 ### Added
 
 - Added push/PR CI, checksum-verified GitHub Release installation, and

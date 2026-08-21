@@ -40,6 +40,7 @@ pub struct TranscribeResult {
 
 pub fn run(
     recording: &Path,
+    transcription_input: &Path,
     profile_name: &str,
     profile: &Profile,
     model: &str,
@@ -47,8 +48,12 @@ pub fn run(
     interactive: bool,
 ) -> Result<TranscribeResult> {
     call::validate_file(recording, "Recording")?;
-    if !crate::inbox::is_media_file(recording) {
-        bail!("Unsupported recording type: {}", recording.display());
+    call::validate_file(transcription_input, "Transcription input")?;
+    if !crate::inbox::is_media_file(transcription_input) {
+        bail!(
+            "Unsupported transcription input type: {}",
+            transcription_input.display()
+        );
     }
     if model.trim().is_empty() || !model.contains(':') {
         bail!("Transcription model must use engine:model-id format");
@@ -75,7 +80,8 @@ pub fn run(
     manifest.call_goal = profile.call_goal.clone();
     manifest.source_language = profile.source_language.clone();
     manifest.report_language = REPORT_LANGUAGE.to_string();
-    manifest.set_recording(recording, None, &paths.root)?;
+    let original_video = (transcription_input != recording).then_some(recording);
+    manifest.set_recording(transcription_input, original_video, &paths.root)?;
 
     let raw_target = paths
         .root
@@ -92,7 +98,7 @@ pub fn run(
         .arg(&profile.source_language)
         .arg("--output")
         .arg(&raw_target)
-        .arg(recording)
+        .arg(transcription_input)
         .stdout(Stdio::null())
         .status()
         .with_context(
@@ -122,6 +128,9 @@ pub fn run(
     manifest.transcript = Some(canonical.clone());
     manifest.analysis = None;
     manifest.set_artifact("recording", recording, &paths.root);
+    if transcription_input != recording {
+        manifest.set_artifact("audio", transcription_input, &paths.root);
+    }
     manifest.set_artifact("transcript", &paths.transcript, &paths.root);
 
     storage::atomic_write_pair(
@@ -132,8 +141,9 @@ pub fn run(
     )?;
     call::remove_legacy_files(&paths)?;
     logs::event(&format!(
-        "transcribe_done recording=\"{}\" transcript=\"{}\"",
+        "transcribe_done recording=\"{}\" input=\"{}\" transcript=\"{}\"",
         recording.display(),
+        transcription_input.display(),
         paths.transcript.display()
     ));
     Ok(TranscribeResult {

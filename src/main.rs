@@ -18,9 +18,11 @@ mod logs;
 mod storage;
 mod transcribe;
 mod transcript;
+mod workflow;
 
-use cli::{Cli, Commands, ProfileArgs};
+use cli::{Cli, Commands, ListenArgs, ProfileArgs, TranscribeArgs};
 use config::{Config, Mode, Profile};
+use workflow::{Plan, Stage};
 
 #[derive(Debug, Serialize)]
 struct CommandOutcome {
@@ -31,6 +33,23 @@ struct CommandOutcome {
     artifacts: BTreeMap<String, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     quick_review: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    through: Option<&'static str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    steps: Vec<WorkflowStep>,
+}
+
+#[derive(Debug, Serialize)]
+struct WorkflowStep {
+    command: &'static str,
+    result: String,
+    effective: Value,
+    artifacts: BTreeMap<String, String>,
+}
+
+struct TranscriptionInput {
+    recording: PathBuf,
+    media: PathBuf,
 }
 
 fn main() {
@@ -108,99 +127,16 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
     let interactive = !cli.non_interactive;
     match cli.command {
         Commands::Listen(args) => {
-            let (profile_name, profile) = effective_profile(&config, args.profile, interactive)?;
-            let recording = resolve_recording(args.recording, &profile.inbox_dir, interactive)?;
-            let default_name = recording
-                .file_stem()
-                .and_then(|value| value.to_str())
-                .unwrap_or("recording");
-            let name = match args.name {
-                Some(name) => name,
-                None if interactive => prompt_text("Call name", default_name)?,
-                None => default_name.to_string(),
-            };
-            let move_source = if interactive && !args.r#move && !args.copy {
-                Select::new("Source action:", vec!["copy", "move"])
-                    .prompt()
-                    .map_err(|error| anyhow::anyhow!("Failed to select source action: {error}"))?
-                    == "move"
-            } else {
-                args.r#move
-            };
-            let plan = listen::plan(&recording, &name, &profile)?;
-            let effective = effective_json(
-                &profile_name,
-                &profile,
-                json!({
-                    "recording": recording,
-                    "name": name,
-                    "source_action": if move_source {"move"} else {"copy"},
-                    "destination": plan.recording,
-                    "derived_audio": plan.derived_audio,
-                }),
-            );
-            show_effective("listen", &effective);
-            let result = listen::run(&recording, &name, move_source, &profile)?;
-            let mut artifacts = BTreeMap::new();
-            artifacts.insert(
-                "recording".to_string(),
-                result.recording.display().to_string(),
-            );
-            if let Some(path) = result.derived_audio {
-                artifacts.insert("audio".to_string(), path.display().to_string());
-            }
-            Ok(CommandOutcome {
-                status: "success",
-                command: "listen",
-                result: "created".to_string(),
-                effective,
-                artifacts,
-                quick_review: None,
-            })
+            let plan = Plan::new(Stage::Listen, args.through.map(Into::into))?;
+            let (profile_name, profile) =
+                effective_profile(&config, args.profile.clone(), interactive)?;
+            run_from_listen(&config, &profile_name, &profile, args, plan, interactive)
         }
         Commands::Transcribe(args) => {
-            let (profile_name, profile) = effective_profile(&config, args.profile, interactive)?;
-            let recording = resolve_recording(args.recording, &profile.calls_dir, interactive)?;
-            let force = prompt_force(args.force, interactive, "Replace existing transcript?")?;
-            let paths = call::CallPaths::from_recording(&recording)?;
-            let effective = effective_json(
-                &profile_name,
-                &profile,
-                json!({
-                    "recording": recording,
-                    "force": force,
-                    "model": config.transcription.model,
-                    "transcript": paths.transcript,
-                    "call_json": paths.manifest,
-                }),
-            );
-            show_effective("transcribe", &effective);
-            let result = transcribe::run(
-                &recording,
-                &profile_name,
-                &profile,
-                &config.transcription.model,
-                force,
-                interactive,
-            )?;
-            let artifacts = BTreeMap::from([
-                (
-                    "transcript".to_string(),
-                    result.transcript.display().to_string(),
-                ),
-                (
-                    "call_json".to_string(),
-                    result.call_json.display().to_string(),
-                ),
-            ]);
-            Ok(CommandOutcome {
-                status: "success",
-                command: "transcribe",
-                result: result.result,
-                effective,
-                artifacts,
-                quick_review: None,
-            })
+            let plan = Plan::new(Stage::Transcribe, args.through.map(Into::into))?;
+            let (profile_name, profile) =
+                effective_profile(&config, args.profile.clone(), interactive)?;
+            run_from_transcribe(&config, &profile_name, &profile, args, plan, interactive)
         }
         Commands::Feedback(args) => {
             let (profile_name, mut profile) =
@@ -210,44 +146,287 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
             }
             let transcript = resolve_transcript(args.transcript, &profile.calls_dir, interactive)?;
             let force = prompt_force(args.force, interactive, "Replace existing feedback?")?;
-            let paths = call::CallPaths::from_transcript(&transcript)?;
-            let effective = effective_json(
-                &profile_name,
-                &profile,
-                json!({
-                    "transcript": transcript,
-                    "force": force,
-                    "model": config.analysis.model,
-                    "store": false,
-                    "feedback": paths.feedback,
-                    "call_json": paths.manifest,
-                }),
-            );
-            show_effective("feedback", &effective);
-            let result = analysis::run(
+            run_feedback_step(
                 &config,
                 &profile_name,
                 &profile,
-                &transcript,
+                transcript,
                 force,
                 interactive,
-            )?;
-            let mut artifacts = BTreeMap::from([(
-                "feedback".to_string(),
-                result.feedback.display().to_string(),
-            )]);
-            if let Some(path) = result.call_json {
-                artifacts.insert("call_json".to_string(), path.display().to_string());
-            }
-            Ok(CommandOutcome {
-                status: "success",
-                command: "feedback",
-                result: result.result,
-                effective,
-                artifacts,
-                quick_review: (!result.quick_review.is_empty()).then_some(result.quick_review),
-            })
+            )
         }
+    }
+}
+
+fn run_from_listen(
+    config: &Config,
+    profile_name: &str,
+    profile: &Profile,
+    args: ListenArgs,
+    plan: Plan,
+    interactive: bool,
+) -> Result<CommandOutcome> {
+    let source = resolve_recording(args.recording, &profile.inbox_dir, interactive)?;
+    let default_name = source
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("recording");
+    let name = match args.name {
+        Some(name) => name,
+        None if interactive => prompt_text("Call name", default_name)?,
+        None => default_name.to_string(),
+    };
+    let move_source = if interactive && !args.r#move && !args.copy {
+        Select::new("Source action:", vec!["copy", "move"])
+            .prompt()
+            .map_err(|error| anyhow::anyhow!("Failed to select source action: {error}"))?
+            == "move"
+    } else {
+        args.r#move
+    };
+
+    let (listen_outcome, recording) =
+        run_listen_step(profile_name, profile, source, name, move_source)?;
+    let mut outcomes = vec![listen_outcome];
+    let mut transcript = None;
+
+    if plan.includes(Stage::Transcribe) {
+        let (outcome, path) =
+            run_transcribe_step(config, profile_name, profile, recording, false, interactive)?;
+        outcomes.push(outcome);
+        transcript = Some(path);
+    }
+    if plan.includes(Stage::Feedback) {
+        let transcript = transcript.context("feedback requires a transcript")?;
+        outcomes.push(run_feedback_step(
+            config,
+            profile_name,
+            profile,
+            transcript,
+            false,
+            interactive,
+        )?);
+    }
+    Ok(finish_workflow(Stage::Listen, &plan, outcomes))
+}
+
+fn run_from_transcribe(
+    config: &Config,
+    profile_name: &str,
+    profile: &Profile,
+    args: TranscribeArgs,
+    plan: Plan,
+    interactive: bool,
+) -> Result<CommandOutcome> {
+    let recording = resolve_recording(args.recording, &profile.calls_dir, interactive)?;
+    let input = TranscriptionInput {
+        media: recording.clone(),
+        recording,
+    };
+    let force = prompt_force(args.force, interactive, "Replace existing transcript?")?;
+    let (transcribe_outcome, transcript) =
+        run_transcribe_step(config, profile_name, profile, input, force, interactive)?;
+    let mut outcomes = vec![transcribe_outcome];
+    if plan.includes(Stage::Feedback) {
+        outcomes.push(run_feedback_step(
+            config,
+            profile_name,
+            profile,
+            transcript,
+            false,
+            interactive,
+        )?);
+    }
+    Ok(finish_workflow(Stage::Transcribe, &plan, outcomes))
+}
+
+fn run_listen_step(
+    profile_name: &str,
+    profile: &Profile,
+    source: PathBuf,
+    name: String,
+    move_source: bool,
+) -> Result<(CommandOutcome, TranscriptionInput)> {
+    let plan = listen::plan(&source, &name, profile)?;
+    let effective = effective_json(
+        profile_name,
+        profile,
+        json!({
+            "recording": source,
+            "name": name,
+            "source_action": if move_source {"move"} else {"copy"},
+            "destination": plan.recording,
+            "derived_audio": plan.derived_audio,
+        }),
+    );
+    show_effective("listen", &effective);
+    let result = listen::run(&source, &name, move_source, profile)?;
+    let transcription_input = TranscriptionInput {
+        recording: result.recording.clone(),
+        media: result.transcription_input().to_path_buf(),
+    };
+    let mut artifacts = BTreeMap::from([(
+        "recording".to_string(),
+        result.recording.display().to_string(),
+    )]);
+    if let Some(path) = result.derived_audio {
+        artifacts.insert("audio".to_string(), path.display().to_string());
+    }
+    Ok((
+        step_outcome("listen", "created".to_string(), effective, artifacts, None),
+        transcription_input,
+    ))
+}
+
+fn run_transcribe_step(
+    config: &Config,
+    profile_name: &str,
+    profile: &Profile,
+    input: TranscriptionInput,
+    force: bool,
+    interactive: bool,
+) -> Result<(CommandOutcome, PathBuf)> {
+    let paths = call::CallPaths::from_recording(&input.recording)?;
+    let effective = effective_json(
+        profile_name,
+        profile,
+        json!({
+            "recording": input.recording,
+            "transcription_input": input.media,
+            "force": force,
+            "model": config.transcription.model,
+            "transcript": paths.transcript,
+            "call_json": paths.manifest,
+        }),
+    );
+    show_effective("transcribe", &effective);
+    let result = transcribe::run(
+        &input.recording,
+        &input.media,
+        profile_name,
+        profile,
+        &config.transcription.model,
+        force,
+        interactive,
+    )?;
+    let transcript = result.transcript.clone();
+    let artifacts = BTreeMap::from([
+        (
+            "transcript".to_string(),
+            result.transcript.display().to_string(),
+        ),
+        (
+            "call_json".to_string(),
+            result.call_json.display().to_string(),
+        ),
+    ]);
+    Ok((
+        step_outcome("transcribe", result.result, effective, artifacts, None),
+        transcript,
+    ))
+}
+
+fn run_feedback_step(
+    config: &Config,
+    profile_name: &str,
+    profile: &Profile,
+    transcript: PathBuf,
+    force: bool,
+    interactive: bool,
+) -> Result<CommandOutcome> {
+    let paths = call::CallPaths::from_transcript(&transcript)?;
+    let effective = effective_json(
+        profile_name,
+        profile,
+        json!({
+            "transcript": transcript,
+            "force": force,
+            "model": config.analysis.model,
+            "store": false,
+            "feedback": paths.feedback,
+            "call_json": paths.manifest,
+        }),
+    );
+    show_effective("feedback", &effective);
+    let result = analysis::run(
+        config,
+        profile_name,
+        profile,
+        &transcript,
+        force,
+        interactive,
+    )?;
+    let mut artifacts = BTreeMap::from([(
+        "feedback".to_string(),
+        result.feedback.display().to_string(),
+    )]);
+    if let Some(path) = result.call_json {
+        artifacts.insert("call_json".to_string(), path.display().to_string());
+    }
+    let quick_review = (!result.quick_review.is_empty()).then_some(result.quick_review);
+    Ok(step_outcome(
+        "feedback",
+        result.result,
+        effective,
+        artifacts,
+        quick_review,
+    ))
+}
+
+fn step_outcome(
+    command: &'static str,
+    result: String,
+    effective: Value,
+    artifacts: BTreeMap<String, String>,
+    quick_review: Option<String>,
+) -> CommandOutcome {
+    CommandOutcome {
+        status: "success",
+        command,
+        result,
+        effective,
+        artifacts,
+        quick_review,
+        through: None,
+        steps: Vec::new(),
+    }
+}
+
+fn finish_workflow(start: Stage, plan: &Plan, outcomes: Vec<CommandOutcome>) -> CommandOutcome {
+    if !plan.is_pipeline() {
+        return outcomes
+            .into_iter()
+            .next()
+            .expect("a workflow always has an outcome");
+    }
+    let mut artifacts = BTreeMap::new();
+    let quick_review = outcomes
+        .last()
+        .and_then(|outcome| outcome.quick_review.clone());
+    let steps = outcomes
+        .into_iter()
+        .map(|outcome| {
+            artifacts.extend(outcome.artifacts.clone());
+            WorkflowStep {
+                command: outcome.command,
+                result: outcome.result,
+                effective: outcome.effective,
+                artifacts: outcome.artifacts,
+            }
+        })
+        .collect();
+    CommandOutcome {
+        status: "success",
+        command: start.as_str(),
+        result: "completed".to_string(),
+        effective: json!({
+            "start": start,
+            "through": plan.target(),
+        }),
+        artifacts,
+        quick_review,
+        through: Some(plan.target().as_str()),
+        steps,
     }
 }
 
@@ -523,6 +702,9 @@ fn show_effective(command: &str, effective: &Value) {
 
 fn print_human_outcome(outcome: &CommandOutcome) {
     println!("{}: {}", outcome.command, outcome.result);
+    for step in &outcome.steps {
+        println!("{}: {}", step.command, step.result);
+    }
     for (name, path) in &outcome.artifacts {
         println!("{name}: {path}");
     }

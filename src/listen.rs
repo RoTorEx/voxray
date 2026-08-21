@@ -19,6 +19,12 @@ pub struct ListenResult {
     pub source_action: String,
 }
 
+impl ListenResult {
+    pub fn transcription_input(&self) -> &Path {
+        self.derived_audio.as_deref().unwrap_or(&self.recording)
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ListenPlan {
     pub recording: PathBuf,
@@ -222,5 +228,25 @@ mod tests {
             "2026-08-07 17-30 Session"
         );
         assert_eq!(build_base_name(&dt, "", "Session"), "Session");
+    }
+
+    #[test]
+    fn prefers_derived_audio_for_transcription() {
+        let result = ListenResult {
+            recording: PathBuf::from("call.record.mov"),
+            derived_audio: Some(PathBuf::from("call.audio.m4a")),
+            source_action: "copy".to_string(),
+        };
+        assert_eq!(result.transcription_input(), Path::new("call.audio.m4a"));
+    }
+
+    #[test]
+    fn uses_recording_when_no_audio_was_derived() {
+        let result = ListenResult {
+            recording: PathBuf::from("call.record.m4a"),
+            derived_audio: None,
+            source_action: "copy".to_string(),
+        };
+        assert_eq!(result.transcription_input(), Path::new("call.record.m4a"));
     }
 }

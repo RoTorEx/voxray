@@ -6,6 +6,9 @@ Tracks real product progress.
 
 ### Added
 
+- Added `--through` pipelines so `listen` can continue through `transcribe` or
+  `feedback`, and `transcribe` can continue through `feedback` using exact
+  artifacts produced by each preceding stage.
 - Added matching interactive and non-interactive parameter surfaces: profiles
   prefill every effective value, while command-line flags can override each one.
 - Added strict single-object JSON output with effective parameters and artifacts.

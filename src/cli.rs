@@ -1,6 +1,8 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
+use crate::workflow::Stage;
+
 #[derive(Debug, Parser)]
 #[command(name = "voxray")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -110,6 +112,10 @@ pub struct ListenArgs {
     /// Keep the source (default)
     #[arg(long, conflicts_with = "move")]
     pub copy: bool,
+
+    /// Continue the pipeline through this stage
+    #[arg(long, value_enum)]
+    pub through: Option<ListenThroughArg>,
 }
 
 #[derive(Debug, Args)]
@@ -124,6 +130,10 @@ pub struct TranscribeArgs {
     /// Safely replace existing transcript.txt and call.json
     #[arg(long)]
     pub force: bool,
+
+    /// Continue the pipeline through this stage
+    #[arg(long, value_enum)]
+    pub through: Option<TranscribeThroughArg>,
 }
 
 #[derive(Debug, Args)]
@@ -148,6 +158,34 @@ pub struct FeedbackArgs {
 pub enum ModeArg {
     Folder,
     File,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum ListenThroughArg {
+    Transcribe,
+    Feedback,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum TranscribeThroughArg {
+    Feedback,
+}
+
+impl From<ListenThroughArg> for Stage {
+    fn from(value: ListenThroughArg) -> Self {
+        match value {
+            ListenThroughArg::Transcribe => Self::Transcribe,
+            ListenThroughArg::Feedback => Self::Feedback,
+        }
+    }
+}
+
+impl From<TranscribeThroughArg> for Stage {
+    fn from(value: TranscribeThroughArg) -> Self {
+        match value {
+            TranscribeThroughArg::Feedback => Self::Feedback,
+        }
+    }
 }
 
 impl From<ModeArg> for crate::config::Mode {
@@ -194,5 +232,46 @@ mod tests {
         };
         assert_eq!(args.profile.modules, ["sales", "english"]);
         assert_eq!(args.profile.subject_speakers, ["Speaker 1"]);
+    }
+
+    #[test]
+    fn parses_listen_through_feedback() {
+        let cli = Cli::try_parse_from([
+            "voxray",
+            "listen",
+            "--recording",
+            "/tmp/call.m4a",
+            "--through",
+            "feedback",
+            "--non-interactive",
+        ])
+        .unwrap();
+        let Commands::Listen(args) = cli.command else {
+            panic!("expected listen")
+        };
+        assert_eq!(args.through, Some(ListenThroughArg::Feedback));
+    }
+
+    #[test]
+    fn parses_transcribe_through_feedback() {
+        let cli = Cli::try_parse_from([
+            "voxray",
+            "transcribe",
+            "--recording",
+            "/tmp/call.m4a",
+            "--through",
+            "feedback",
+            "--non-interactive",
+        ])
+        .unwrap();
+        let Commands::Transcribe(args) = cli.command else {
+            panic!("expected transcribe")
+        };
+        assert_eq!(args.through, Some(TranscribeThroughArg::Feedback));
+    }
+
+    #[test]
+    fn rejects_backward_pipeline_at_cli_boundary() {
+        assert!(Cli::try_parse_from(["voxray", "transcribe", "--through", "listen"]).is_err());
     }
 }

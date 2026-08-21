@@ -2,14 +2,14 @@
 
 Personal macOS CLI for storing, transcribing, and reviewing calls.
 
-Voxray has exactly three commands:
+Voxray has three commands:
 
 - `voxray listen` stores one recording.
 - `voxray transcribe` creates one `transcript.txt` and one technical `call.json`.
 - `voxray feedback` creates one English `feedback.txt` from a transcript.
 
-There is no combined pipeline command. Each operation is explicit and can run
-interactively or without stdin.
+Each command runs independently by default. `listen` and `transcribe` can also
+continue through a later stage with `--through`.
 
 ## Requirements
 
@@ -134,11 +134,36 @@ uses its structured segments and deterministic metrics. Otherwise it parses the
 TXT and marks unavailable metrics as `N/A`. One request handles every active
 module with `store=false`; output is English plain text, not Markdown.
 
+## Pipeline
+
+Run from `listen` through transcription:
+
+```bash
+voxray listen --through transcribe
+```
+
+Run the complete pipeline from recording storage through feedback:
+
+```bash
+voxray listen --through feedback
+```
+
+Continue from an existing recording through feedback:
+
+```bash
+voxray transcribe --recording "/path/call.record.m4a" --through feedback
+```
+
+Each completed stage passes its exact output path to the next stage. Pipelines
+stop on the first error and keep artifacts already published by successful
+stages. Existing derived artifacts are preserved; use the standalone stage with
+`--force` when replacement is intentional.
+
 ## JSON output
 
 Add `--json` to a non-interactive command. Stdout contains exactly one JSON
-object with the effective parameters, artifacts, and result. Diagnostics go to
-stderr.
+object with the effective parameters, artifacts, and result. Pipeline output
+also includes its endpoint and per-stage results. Diagnostics go to stderr.
 
 ## Files
 

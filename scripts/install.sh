@@ -84,11 +84,6 @@ mv "$bin_dir/.voxray-install-$$" "$bin_dir/voxray"
 if [ -f "$install_dir/voxray" ]; then
     rm "$install_dir/voxray"
 fi
-if [ ! -f "$install_dir/config.toml" ] && [ -f "$temp_dir/config.example.toml" ]; then
-    cp "$temp_dir/config.example.toml" "$install_dir/config.toml"
-    chmod 0600 "$install_dir/config.toml"
-fi
-
 if [ -n "${GH_INSTALLER_TOKEN:-}" ]; then
     mkdir -p "$(dirname "$token_file")"
     umask 077

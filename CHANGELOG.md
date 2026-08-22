@@ -4,6 +4,14 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Added interactive `setup-config`; working commands now require an explicit
+  root config, and configurations with analysis modules also require an API
+  token at startup.
+- Hardened `make release-push` to verify `main` and the current version tag
+  before pushing.
+
 ## [0.2.3] - 2026-08-22
 
 ## [0.2.2] - 2026-08-22

@@ -19,11 +19,6 @@ if [ -f "$install_dir/voxray" ]; then
 fi
 trap - EXIT HUP INT TERM
 
-if [ ! -f "$install_dir/config.toml" ]; then
-    cp config.example.toml "$install_dir/config.toml"
-    chmod 0600 "$install_dir/config.toml"
-fi
-
 profile=""
 case "${SHELL:-}" in
     */bash) profile="$HOME/.bashrc" ;;

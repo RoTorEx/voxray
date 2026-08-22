@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::io::Write;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::PathBuf;
 
 pub const REPORT_LANGUAGE: &str = "en";
@@ -155,22 +157,30 @@ impl Config {
 
     pub fn load() -> Result<Self> {
         let path = Self::path()?;
-        if path.exists() {
-            let content = fs::read_to_string(&path)
-                .with_context(|| format!("Failed to read config from {}", path.display()))?;
-            let config: Config = toml::from_str(&content)
-                .with_context(|| format!("Failed to parse config from {}", path.display()))?;
-            Ok(config)
-        } else {
-            let config = Config {
-                default: default_profile(),
-                profiles: HashMap::new(),
-                languages: default_languages(),
-                analysis: AnalysisConfig::default(),
-                transcription: TranscriptionConfig::default(),
-            };
-            config.save()?;
-            Ok(config)
+        let content = match fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                anyhow::bail!(
+                    "Configuration is required at {}; run `voxray setup-config`",
+                    path.display()
+                )
+            }
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("Failed to read config from {}", path.display()));
+            }
+        };
+        toml::from_str(&content)
+            .with_context(|| format!("Failed to parse config from {}", path.display()))
+    }
+
+    pub fn starter() -> Self {
+        Config {
+            default: default_profile(),
+            profiles: HashMap::new(),
+            languages: default_languages(),
+            analysis: AnalysisConfig::default(),
+            transcription: TranscriptionConfig::default(),
         }
     }
 
@@ -181,10 +191,31 @@ impl Config {
                 .context("Config path has no parent directory")?,
         )
         .with_context(|| format!("Failed to create config directory {}", path.display()))?;
+        fs::set_permissions(
+            path.parent()
+                .context("Config path has no parent directory")?,
+            fs::Permissions::from_mode(0o700),
+        )?;
         let content = toml::to_string_pretty(self).context("Failed to serialize config")?;
-        fs::write(&path, content)
-            .with_context(|| format!("Failed to write config to {}", path.display()))?;
-        Ok(())
+        let temporary = path.with_file_name(format!(".config-{}.tmp", std::process::id()));
+        let result = (|| {
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&temporary)
+                .with_context(|| format!("Failed to create {}", temporary.display()))?;
+            file.write_all(content.as_bytes())?;
+            file.sync_all()?;
+            fs::rename(&temporary, &path)
+                .with_context(|| format!("Failed to publish {}", path.display()))?;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600))?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(temporary);
+        }
+        result
     }
 
     pub fn profile(&self, name: Option<&str>) -> Result<&Profile> {
@@ -203,6 +234,14 @@ impl Config {
         names.sort();
         labels.extend(names);
         labels
+    }
+
+    pub fn analysis_enabled(&self) -> bool {
+        !self.default.modules.is_empty()
+            || self
+                .profiles
+                .values()
+                .any(|profile| !profile.modules.is_empty())
     }
 }
 
@@ -258,5 +297,13 @@ reasoning_effort = "medium"
         let config: Config = toml::from_str(input).unwrap();
         assert_eq!(config.default.modules, vec!["english", "common"]);
         assert_eq!(config.analysis.model, "gpt-5.6-terra");
+    }
+
+    #[test]
+    fn analysis_is_enabled_by_any_profile_modules() {
+        let mut config = Config::starter();
+        assert!(!config.analysis_enabled());
+        config.default.modules.push("communication".to_string());
+        assert!(config.analysis_enabled());
     }
 }

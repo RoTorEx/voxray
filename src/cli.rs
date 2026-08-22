@@ -28,6 +28,9 @@ pub enum Commands {
     /// Securely save the OpenAI API token
     SetupAiToken,
 
+    /// Create the starter configuration
+    SetupConfig,
+
     /// Copy or move one recording into the calls library
     #[command(
         after_help = "Interactive: voxray inbox\nNon-interactive: voxray inbox --profile sales --recording /path/call.m4a --non-interactive"
@@ -227,6 +230,16 @@ mod tests {
                 .unwrap()
                 .command,
             Commands::SetupAiToken
+        ));
+    }
+
+    #[test]
+    fn parses_setup_config_command() {
+        assert!(matches!(
+            Cli::try_parse_from(["voxray", "setup-config"])
+                .unwrap()
+                .command,
+            Commands::SetupConfig
         ));
     }
 

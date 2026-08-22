@@ -841,6 +841,10 @@ fn read_api_key() -> Result<String> {
     bail!("OPENAI_API_KEY is missing; run `voxray setup-ai-token` or set it in the environment")
 }
 
+pub fn require_api_key() -> Result<()> {
+    read_api_key().map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

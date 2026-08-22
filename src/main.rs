@@ -16,6 +16,7 @@ mod inbox;
 mod logs;
 mod media;
 mod setup;
+mod setup_config;
 mod storage;
 mod transcribe;
 mod transcript;
@@ -162,7 +163,31 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
             steps: Vec::new(),
         });
     }
+    if matches!(&cli.command, Commands::SetupConfig) {
+        if cli.non_interactive {
+            bail!("setup-config is interactive only");
+        }
+        let setup = setup_config::run()?;
+        return Ok(CommandOutcome {
+            status: "ok",
+            command: "setup-config",
+            result: if setup.changed {
+                "created starter configuration"
+            } else {
+                "kept existing configuration"
+            }
+            .to_string(),
+            effective: json!({"permissions": "0600"}),
+            artifacts: BTreeMap::from([("config".to_string(), setup.path.display().to_string())]),
+            quick_review: None,
+            through: None,
+            steps: Vec::new(),
+        });
+    }
     let config = Config::load()?;
+    if config.analysis_enabled() {
+        analysis::require_api_key()?;
+    }
     let interactive = !cli.non_interactive;
     match cli.command {
         Commands::Inbox(args) => {
@@ -197,6 +222,9 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
         Commands::Update => unreachable!("update returns before configuration is loaded"),
         Commands::SetupAiToken => {
             unreachable!("setup-ai-token returns before configuration is loaded")
+        }
+        Commands::SetupConfig => {
+            unreachable!("setup-config returns before configuration is loaded")
         }
     }
 }

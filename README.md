@@ -51,8 +51,15 @@ Verify the installed version with `voxray --version`.
 
 ## Configuration
 
-Copy `config.example.toml` beside the installed binary as `config.toml`, then
-replace the example paths and profile values. Runtime files are:
+Create a minimal starter configuration interactively:
+
+```bash
+voxray setup-config
+```
+
+Without `~/.x-cli-voxray/config.toml`, working commands refuse to start and
+point to `setup-config`. If a config already exists, Enter keeps it; explicit
+confirmation is required before replacement. Runtime files are:
 
 ```text
 ~/.x-cli-voxray/config.toml
@@ -75,6 +82,10 @@ required before replacement.
 ```dotenv
 OPENAI_API_KEY=...
 ```
+
+When `modules` is non-empty in any configured profile, an OpenAI token is
+required before working commands can start. Configurations without analysis
+modules can use `inbox` and `transcribe` without a token.
 
 `voxray.log` contains command start/end status and duration, errors, artifact
 paths and source actions, transcription paths, and analysis model/module timing.

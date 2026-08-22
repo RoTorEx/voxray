@@ -66,6 +66,12 @@ release-tag:
 	echo "Created annotated tag v$$version"
 
 release-push:
+	@set -eu; \
+	branch="$$(git branch --show-current)"; \
+	test "$$branch" = "main" || { echo "ERROR: releases must be pushed from main, not $$branch." >&2; exit 1; }; \
+	version="$$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n 1)"; \
+	tag="v$$version"; \
+	git rev-parse -q --verify "refs/tags/$$tag" >/dev/null || { echo "ERROR: missing $$tag. Run make release." >&2; exit 1; }; \
 	git push origin main --follow-tags
 
 release-publish: cargo-target-dir dist-dir

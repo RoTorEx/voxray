@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-22
+
 ### Changed
 
 - Added interactive `setup-config`; working commands now require an explicit

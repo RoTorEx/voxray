@@ -52,6 +52,15 @@ are project-specific. Document and implement only the delivery mechanisms the
 project actually uses. Do not add a publishing system merely to satisfy the
 kernel.
 
+Before pushing the first tag through a new or materially changed automated
+publishing workflow, run the closest practical non-release preflight. Verify
+that every configured supported target can resolve or build, expected artifacts
+reach the publisher, and the publisher has the required repository context and
+permissions. A recent successful tagged run is sufficient only when the
+workflow and relevant dependency paths are unchanged. Do not add unsupported
+targets merely for this check. After pushing, read back the workflow conclusion
+and expected published assets.
+
 ## Changelog
 
 Record user-visible behavior, important fixes, migrations, and delivery changes.

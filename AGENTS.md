@@ -12,7 +12,8 @@ Do not read the parent kernel repo outside this repository during normal work.
 
 This project uses committed local copies of the Vibecoding Kernel.
 
-- Always read `.vibe/kernel/OPERATING.md` before normal project work.
+- Always read `.vibe/kernel/OPERATING.md` and choose its maintenance, operation,
+  or audit mode before normal project work.
 - For version, tag, publish, or release work, also read
   `.vibe/kernel/RELEASE.md`.
 - For user corrections, instruction conflicts, reusable agent-workflow lessons,
@@ -45,7 +46,9 @@ Read these only when the task requires them:
 When the user explicitly requests a release, start `make release` unchanged,
 enter the requested version through the running command's stdin, then run
 `make release-push`. Do not pipe the version into the shell command, repeat the
-script's checks manually, or wait for GitHub Actions unless the user asks.
+script's checks manually, or monitor unrelated CI. When the pushed tag triggers
+automated publishing, apply the preflight and post-push verification in
+`.vibe/kernel/RELEASE.md`.
 
 ## Rule priority
 

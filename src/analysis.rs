@@ -423,7 +423,7 @@ fn render_feedback(document: &AnalysisDocument) -> String {
             .issues
             .iter()
             .filter(|issue| issue.module == module.name)
-            .take(2)
+            .take(1)
         {
             output.push_str(&format!(
                 "\nISSUE\n{}\n\nWHY IT MATTERS\n{}\n\nEVIDENCE\n{}\n\nBETTER MOVE\n{}\n",

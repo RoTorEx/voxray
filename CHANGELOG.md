@@ -4,6 +4,11 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Made `setup-config` include a safe dummy profile with every supported profile
+  field and documented the complete configuration interface.
+
 ## [0.3.0] - 2026-08-22
 
 ### Changed

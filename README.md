@@ -103,6 +103,62 @@ Interactive operation shows every effective profile value, allows it to be
 edited, then shows the input, destination, and command-specific values before
 running. Enter accepts the displayed value.
 
+`setup-config` includes a safe `[profiles.dummy]` containing every profile
+field. Its paths are placeholders and its empty `modules` list keeps analysis
+disabled until the profile is deliberately configured.
+
+### Configuration reference
+
+Top-level options:
+
+| Option | Meaning | Default |
+| --- | --- | --- |
+| `languages` | Choices presented for interactive source-language selection | `["auto", "en", "ru"]` |
+
+`[default]` supplies the fallback profile. `[profiles.<name>]` uses the same
+fields for named profiles:
+
+| Option | Meaning | CLI override |
+| --- | --- | --- |
+| `inbox_dir` | Directory searched for source recordings | `--inbox-dir` |
+| `calls_dir` | Destination library for recordings and derived artifacts | `--calls-dir` |
+| `date_format` | `strftime` prefix for call names; `""` disables the prefix | `--date-format` |
+| `mode` | Storage layout: `"folder"` or `"file"` | `--mode` |
+| `modules` | Analysis modules: `sales`, `interview`, `english`, `communication`; `[]` disables analysis | `--module` (repeatable) |
+| `call_type` | Free-form call context supplied to analysis | `--call-type` |
+| `subject_name` | Name of the participant being evaluated | `--subject-name` |
+| `subject_role` | Role of the participant being evaluated | `--subject-role` |
+| `source_language` | Transcription language, normally `"auto"` | `--source-language` |
+| `call_goal` | Desired call outcome supplied to analysis | `--call-goal` |
+| `subject_speakers` | Raw speaker IDs mapped to the evaluated participant | `--subject-speaker` (repeatable) |
+
+`inbox_dir` and `calls_dir` are required in every profile. Other built-in
+defaults are: `date_format = "%Y-%m-%d %H-%M"`, `mode = "folder"`,
+`modules = []`, `call_type = "general"`, `subject_name = "Alex"`,
+`subject_role = "participant"`, `source_language = "auto"`, `call_goal = ""`,
+and `subject_speakers = []`. A named profile is independent; it does not inherit
+missing required paths from `[default]`.
+
+`[transcription]` options:
+
+| Option | Meaning | Default |
+| --- | --- | --- |
+| `model` | Exact model identifier passed to MacWhisper CLI | `whisperkit:openai_whisper-large-v3` |
+| `timestamps` | Request timestamped transcription output | `true` |
+| `speakers` | Request speaker diarization | `true` |
+
+`[analysis]` options:
+
+| Option | Meaning | Default |
+| --- | --- | --- |
+| `model` | OpenAI Responses API model | `gpt-5.6-terra` |
+| `reasoning_effort` | Optional model reasoning effort | `"medium"` |
+| `api_url` | Responses API endpoint or compatible override | `https://api.openai.com/v1/responses` |
+
+The report language is fixed to English. Legacy `feedback` keys remain readable
+as aliases for `modules` and `[analysis]`, but new configs should use the
+canonical names above.
+
 Common overrides include:
 
 ```text

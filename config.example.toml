@@ -11,18 +11,18 @@ call_goal = ""
 subject_speakers = []
 modules = ["communication"]
 
-[profiles.sales]
-inbox_dir = "/Users/you/Calls Inbox"
-calls_dir = "/Users/you/Calls/Sales"
+[profiles.dummy]
+inbox_dir = "/path/to/inbox"
+calls_dir = "/path/to/calls"
 date_format = "%Y-%m-%d %H-%M"
 mode = "folder"
-call_type = "sales"
+call_type = "general"
 subject_name = "Your Name"
-subject_role = "seller"
+subject_role = "participant"
 source_language = "auto"
-call_goal = "Understand fit and agree on a concrete next step"
-subject_speakers = []
-modules = ["sales", "english", "communication"]
+call_goal = "Describe the desired outcome"
+subject_speakers = ["Speaker 1"]
+modules = []
 
 [transcription]
 model = "whisperkit:openai_whisper-large-v3"

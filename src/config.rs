@@ -146,6 +146,22 @@ fn default_profile() -> Profile {
     }
 }
 
+fn dummy_profile() -> Profile {
+    Profile {
+        inbox_dir: PathBuf::from("/path/to/inbox"),
+        calls_dir: PathBuf::from("/path/to/calls"),
+        date_format: Some("%Y-%m-%d %H-%M".to_string()),
+        mode: Some(Mode::Folder),
+        modules: Vec::new(),
+        call_type: "general".to_string(),
+        subject_name: "Your Name".to_string(),
+        subject_role: "participant".to_string(),
+        source_language: "auto".to_string(),
+        call_goal: "Describe the desired outcome".to_string(),
+        subject_speakers: vec!["Speaker 1".to_string()],
+    }
+}
+
 fn default_languages() -> Vec<String> {
     vec!["auto".to_string(), "en".to_string(), "ru".to_string()]
 }
@@ -177,7 +193,7 @@ impl Config {
     pub fn starter() -> Self {
         Config {
             default: default_profile(),
-            profiles: HashMap::new(),
+            profiles: HashMap::from([("dummy".to_string(), dummy_profile())]),
             languages: default_languages(),
             analysis: AnalysisConfig::default(),
             transcription: TranscriptionConfig::default(),
@@ -305,5 +321,15 @@ reasoning_effort = "medium"
         assert!(!config.analysis_enabled());
         config.default.modules.push("communication".to_string());
         assert!(config.analysis_enabled());
+    }
+
+    #[test]
+    fn starter_contains_a_complete_safe_dummy_profile() {
+        let config = Config::starter();
+        let dummy = config.profiles.get("dummy").unwrap();
+        assert_eq!(dummy.mode, Some(Mode::Folder));
+        assert_eq!(dummy.date_format.as_deref(), Some("%Y-%m-%d %H-%M"));
+        assert!(dummy.modules.is_empty());
+        assert!(!config.analysis_enabled());
     }
 }

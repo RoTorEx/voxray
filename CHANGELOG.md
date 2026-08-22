@@ -10,6 +10,8 @@ Tracks real product progress.
   field and documented the complete configuration interface.
 - Removed persistent speaker mapping from profiles; speaker IDs are now selected
   for each call interactively or with repeated `--target-speaker` flags.
+- Fixed the 500-word feedback guard to count only the rendered report instead of
+  hidden structured analysis fields.
 
 ## [0.3.0] - 2026-08-22
 

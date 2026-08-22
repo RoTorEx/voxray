@@ -254,7 +254,7 @@ fn perform_analysis(
         warnings: output.warnings,
     };
     let feedback = render_feedback(&document);
-    let feedback_words = document_prose_word_count(&document);
+    let feedback_words = prose_word_count(&feedback);
     if feedback_words > 500 {
         bail!("Rendered feedback is {feedback_words} words; maximum is 500");
     }
@@ -757,49 +757,8 @@ fn normalize_timestamp(value: &str) -> Option<String> {
     (!normalized.is_empty()).then(|| normalized.join("-"))
 }
 
-fn document_prose_word_count(document: &AnalysisDocument) -> usize {
-    let mut fields = vec![
-        document.quick_review.main_failure.as_str(),
-        document.quick_review.next_call_action.as_str(),
-        document.quick_review.keep_doing.as_str(),
-        document.quick_review.practice.as_str(),
-        document.deal_notes.next_step.as_str(),
-    ];
-    for module in &document.modules {
-        fields.extend([module.summary.as_str(), module.main_issue.as_str()]);
-        fields.extend(
-            module
-                .evidence
-                .iter()
-                .map(|evidence| evidence.quote.as_str()),
-        );
-    }
-    for issue in &document.issues {
-        fields.extend([
-            issue.problem.as_str(),
-            issue.impact.as_str(),
-            issue.better_move.as_str(),
-            issue.example_phrase.as_str(),
-            issue.exercise.as_str(),
-        ]);
-        fields.extend(
-            issue
-                .evidence
-                .iter()
-                .map(|evidence| evidence.quote.as_str()),
-        );
-    }
-    fields.extend(document.deal_notes.buyer_signals.iter().map(String::as_str));
-    fields.extend(
-        document
-            .deal_notes
-            .promises_and_obligations
-            .iter()
-            .map(String::as_str),
-    );
-    fields
-        .into_iter()
-        .flat_map(str::split_whitespace)
+fn prose_word_count(text: &str) -> usize {
+    text.split_whitespace()
         .filter(|word| word.chars().any(char::is_alphanumeric))
         .count()
 }

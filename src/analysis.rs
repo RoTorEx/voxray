@@ -506,8 +506,8 @@ fn render_statistics(metrics: &Metrics) -> String {
     format!(
         "======================================================================\nCALL STATISTICS\n======================================================================\n\nDuration: {}\n\n+------------------------+------------+----------------+\n| METRIC                 | YOU        | OTHER SPEAKERS |\n+------------------------+------------+----------------+\n| Speaking time          | {:>9}% | {:>13}% |\n| Words                  | {:>10} | {:>14} |\n| Turns                  | {:>10} | {:>14} |\n| Questions detected     | {:>10} | {:>14} |\n| Longest monologue      | {:>7} wd | {:>11} wd |\n| Fillers detected       | {:>10} | {:>14} |\n| Words per minute       | {:>10} | {:>14} |\n+------------------------+------------+----------------+",
         crate::transcript::format_timestamp(metrics.duration_seconds),
-        target.speaking_ratio,
-        (100.0_f64 - target.speaking_ratio).max(0.0),
+        format!("{:.1}", target.speaking_ratio),
+        format!("{:.1}", (100.0_f64 - target.speaking_ratio).max(0.0)),
         target.words,
         others.words,
         target.turns,
@@ -541,7 +541,13 @@ fn render_evidence(evidence: &[Evidence]) -> String {
     evidence
         .iter()
         .take(1)
-        .map(|item| format!("[{}] \"{}\"", item.timestamp, item.quote))
+        .map(|item| {
+            let quote = item
+                .quote
+                .trim()
+                .trim_matches(['"', '\'', '“', '”', '‘', '’']);
+            format!("[{}] \"{}\"", item.timestamp, quote)
+        })
         .collect::<Vec<_>>()
         .join("; ")
 }
@@ -958,7 +964,20 @@ mod tests {
         assert!(feedback.contains("QUICK REVIEW"));
         assert!(feedback.contains("CALL STATISTICS"));
         assert!(feedback.contains("| Words"));
+        assert!(feedback.contains("| Speaking time          |      62.5% |          37.5% |"));
         assert!(!feedback.contains("**"));
         assert!(!feedback.contains("# "));
+    }
+
+    #[test]
+    fn renders_evidence_with_exactly_one_quote_pair() {
+        let evidence = [Evidence {
+            timestamp: "00:00:36".to_string(),
+            quote: "\"\"Nearly five years\"\"".to_string(),
+        }];
+        assert_eq!(
+            render_evidence(&evidence),
+            "[00:00:36] \"Nearly five years\""
+        );
     }
 }

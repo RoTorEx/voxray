@@ -13,6 +13,8 @@ Tracks real product progress.
 - Kept feedback within its 500-word contract by counting only rendered text and
   showing one highest-priority issue per module; extra findings remain in
   `call.json`.
+- Rounded speaking-time percentages to one decimal and normalized evidence
+  quotes so rendered reports contain exactly one quote pair.
 
 ## [0.3.0] - 2026-08-22
 

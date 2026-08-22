@@ -38,14 +38,19 @@ pub struct TranscribeResult {
     pub call_json: PathBuf,
 }
 
+pub struct TranscribeOptions<'a> {
+    pub model: &'a str,
+    pub target_speakers: &'a [String],
+    pub force: bool,
+    pub interactive: bool,
+}
+
 pub fn run(
     recording: &Path,
     transcription_input: &Path,
     profile_name: &str,
     profile: &Profile,
-    model: &str,
-    force: bool,
-    interactive: bool,
+    options: TranscribeOptions<'_>,
 ) -> Result<TranscribeResult> {
     call::validate_file(recording, "Recording")?;
     call::validate_file(transcription_input, "Transcription input")?;
@@ -55,12 +60,12 @@ pub fn run(
             transcription_input.display()
         );
     }
-    if model.trim().is_empty() || !model.contains(':') {
+    if options.model.trim().is_empty() || !options.model.contains(':') {
         bail!("Transcription model must use engine:model-id format");
     }
 
     let paths = CallPaths::from_recording(recording)?;
-    if paths.transcript.exists() && !force {
+    if paths.transcript.exists() && !options.force {
         return Ok(TranscribeResult {
             result: "already_exists".to_string(),
             transcript: paths.transcript,
@@ -93,7 +98,7 @@ pub fn run(
         .arg("json")
         .arg("--speakers")
         .arg("--model")
-        .arg(model)
+        .arg(options.model)
         .arg("--language")
         .arg(&profile.source_language)
         .arg("--output")
@@ -116,11 +121,12 @@ pub fn run(
         serde_json::from_slice(&raw).context("MacWhisper returned invalid JSON")?;
     let canonical = transcript::Transcript::from_macwhisper_json(
         &value,
-        model,
+        options.model,
         &profile.source_language,
         profile,
+        options.target_speakers,
         started.elapsed().as_millis(),
-        interactive,
+        options.interactive,
     )?;
 
     manifest.speaker_mapping = canonical.speaker_mapping.clone();

@@ -101,8 +101,6 @@ pub struct Profile {
     pub source_language: String,
     #[serde(default)]
     pub call_goal: String,
-    #[serde(default)]
-    pub subject_speakers: Vec<String>,
 }
 
 fn default_call_type() -> String {
@@ -142,7 +140,6 @@ fn default_profile() -> Profile {
         subject_role: default_subject_role(),
         source_language: default_source_language(),
         call_goal: String::new(),
-        subject_speakers: Vec::new(),
     }
 }
 
@@ -158,7 +155,6 @@ fn dummy_profile() -> Profile {
         subject_role: "participant".to_string(),
         source_language: "auto".to_string(),
         call_goal: "Describe the desired outcome".to_string(),
-        subject_speakers: vec!["Speaker 1".to_string()],
     }
 }
 

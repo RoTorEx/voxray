@@ -105,6 +105,7 @@ pub fn run(
     config: &Config,
     profile_name: &str,
     profile: &Profile,
+    target_speakers: &[String],
     transcript_path: &Path,
     force: bool,
     interactive: bool,
@@ -147,7 +148,7 @@ pub fn run(
         None => {
             let content = fs::read_to_string(transcript_path)
                 .with_context(|| format!("Failed to read {}", transcript_path.display()))?;
-            Transcript::from_legacy_text(&content, profile, interactive)?
+            Transcript::from_legacy_text(&content, profile, target_speakers, interactive)?
         }
     };
     if !transcript

@@ -92,9 +92,9 @@ pub struct ProfileArgs {
     #[arg(long)]
     pub call_goal: Option<String>,
 
-    /// Replace profile speaker IDs; repeat to merge raw IDs into the target
-    #[arg(long = "subject-speaker")]
-    pub subject_speakers: Vec<String>,
+    /// Raw speaker ID for this call; repeat if diarization split one person
+    #[arg(long = "target-speaker")]
+    pub target_speakers: Vec<String>,
 
     /// Replace profile feedback modules; repeat for multiple modules
     #[arg(long = "module")]
@@ -153,10 +153,6 @@ pub struct FeedbackArgs {
     /// Plain UTF-8 transcript to analyze
     #[arg(long)]
     pub transcript: Option<PathBuf>,
-
-    /// Raw speaker ID belonging to the target; repeat to merge IDs
-    #[arg(long = "target-speaker")]
-    pub target_speakers: Vec<String>,
 
     /// Safely replace an existing feedback.txt
     #[arg(long)]
@@ -256,7 +252,7 @@ mod tests {
             "sales",
             "--module",
             "english",
-            "--subject-speaker",
+            "--target-speaker",
             "Speaker 1",
             "--non-interactive",
             "--json",
@@ -268,7 +264,7 @@ mod tests {
             panic!("expected feedback")
         };
         assert_eq!(args.profile.modules, ["sales", "english"]);
-        assert_eq!(args.profile.subject_speakers, ["Speaker 1"]);
+        assert_eq!(args.profile.target_speakers, ["Speaker 1"]);
     }
 
     #[test]

@@ -130,13 +130,12 @@ fields for named profiles:
 | `subject_role` | Role of the participant being evaluated | `--subject-role` |
 | `source_language` | Transcription language, normally `"auto"` | `--source-language` |
 | `call_goal` | Desired call outcome supplied to analysis | `--call-goal` |
-| `subject_speakers` | Raw speaker IDs mapped to the evaluated participant | `--subject-speaker` (repeatable) |
 
 `inbox_dir` and `calls_dir` are required in every profile. Other built-in
 defaults are: `date_format = "%Y-%m-%d %H-%M"`, `mode = "folder"`,
 `modules = []`, `call_type = "general"`, `subject_name = "Alex"`,
-`subject_role = "participant"`, `source_language = "auto"`, `call_goal = ""`,
-and `subject_speakers = []`. A named profile is independent; it does not inherit
+`subject_role = "participant"`, `source_language = "auto"`, and `call_goal = ""`.
+A named profile is independent; it does not inherit
 missing required paths from `[default]`.
 
 `[transcription]` options:
@@ -172,7 +171,7 @@ Common overrides include:
 --subject-role
 --source-language
 --call-goal
---subject-speaker (repeatable)
+--target-speaker (repeatable, per call)
 --module (repeatable)
 ```
 

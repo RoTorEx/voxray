@@ -8,6 +8,8 @@ Tracks real product progress.
 
 - Made `setup-config` include a safe dummy profile with every supported profile
   field and documented the complete configuration interface.
+- Removed persistent speaker mapping from profiles; speaker IDs are now selected
+  for each call interactively or with repeated `--target-speaker` flags.
 
 ## [0.3.0] - 2026-08-22
 

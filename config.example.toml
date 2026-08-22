@@ -8,7 +8,6 @@ subject_name = "Your Name"
 subject_role = "participant"
 source_language = "auto"
 call_goal = ""
-subject_speakers = []
 modules = ["communication"]
 
 [profiles.dummy]
@@ -21,7 +20,6 @@ subject_name = "Your Name"
 subject_role = "participant"
 source_language = "auto"
 call_goal = "Describe the desired outcome"
-subject_speakers = ["Speaker 1"]
 modules = []
 
 [transcription]

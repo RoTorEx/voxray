@@ -113,8 +113,7 @@ fn main() {
                 if let Some(mapping) = error.downcast_ref::<transcript::SpeakerMappingRequired>() {
                     payload["code"] = json!("SPEAKER_MAPPING_REQUIRED");
                     payload["speakers"] = json!(mapping.speakers);
-                    payload["hint"] =
-                        json!("Retry with repeated --target-speaker or --subject-speaker");
+                    payload["hint"] = json!("Retry with repeated --target-speaker");
                 }
                 println!("{payload}");
             } else {
@@ -192,28 +191,44 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
     match cli.command {
         Commands::Inbox(args) => {
             let plan = Plan::new(Stage::Inbox, args.through.map(Into::into))?;
+            let target_speakers = args.profile.target_speakers.clone();
             let (profile_name, profile) =
                 effective_profile(&config, args.profile.clone(), interactive)?;
-            run_from_inbox(&config, &profile_name, &profile, args, plan, interactive)
+            run_from_inbox(
+                &config,
+                &profile_name,
+                &profile,
+                &target_speakers,
+                args,
+                plan,
+                interactive,
+            )
         }
         Commands::Transcribe(args) => {
             let plan = Plan::new(Stage::Transcribe, args.through.map(Into::into))?;
+            let target_speakers = args.profile.target_speakers.clone();
             let (profile_name, profile) =
                 effective_profile(&config, args.profile.clone(), interactive)?;
-            run_from_transcribe(&config, &profile_name, &profile, args, plan, interactive)
+            run_from_transcribe(
+                &config,
+                &profile_name,
+                &profile,
+                &target_speakers,
+                args,
+                plan,
+                interactive,
+            )
         }
         Commands::Feedback(args) => {
-            let (profile_name, mut profile) =
-                effective_profile(&config, args.profile, interactive)?;
-            if !args.target_speakers.is_empty() {
-                profile.subject_speakers = args.target_speakers;
-            }
+            let target_speakers = args.profile.target_speakers.clone();
+            let (profile_name, profile) = effective_profile(&config, args.profile, interactive)?;
             let transcript = resolve_transcript(args.transcript, &profile.calls_dir, interactive)?;
             let force = prompt_force(args.force, interactive, "Replace existing feedback?")?;
             run_feedback_step(
                 &config,
                 &profile_name,
                 &profile,
+                &target_speakers,
                 transcript,
                 force,
                 interactive,
@@ -233,6 +248,7 @@ fn run_from_inbox(
     config: &Config,
     profile_name: &str,
     profile: &Profile,
+    target_speakers: &[String],
     args: InboxArgs,
     plan: Plan,
     interactive: bool,
@@ -262,8 +278,15 @@ fn run_from_inbox(
     let mut transcript = None;
 
     if plan.includes(Stage::Transcribe) {
-        let (outcome, path) =
-            run_transcribe_step(config, profile_name, profile, recording, false, interactive)?;
+        let (outcome, path) = run_transcribe_step(
+            config,
+            profile_name,
+            profile,
+            target_speakers,
+            recording,
+            false,
+            interactive,
+        )?;
         outcomes.push(outcome);
         transcript = Some(path);
     }
@@ -273,6 +296,7 @@ fn run_from_inbox(
             config,
             profile_name,
             profile,
+            target_speakers,
             transcript,
             false,
             interactive,
@@ -285,6 +309,7 @@ fn run_from_transcribe(
     config: &Config,
     profile_name: &str,
     profile: &Profile,
+    target_speakers: &[String],
     args: TranscribeArgs,
     plan: Plan,
     interactive: bool,
@@ -295,14 +320,22 @@ fn run_from_transcribe(
         recording,
     };
     let force = prompt_force(args.force, interactive, "Replace existing transcript?")?;
-    let (transcribe_outcome, transcript) =
-        run_transcribe_step(config, profile_name, profile, input, force, interactive)?;
+    let (transcribe_outcome, transcript) = run_transcribe_step(
+        config,
+        profile_name,
+        profile,
+        target_speakers,
+        input,
+        force,
+        interactive,
+    )?;
     let mut outcomes = vec![transcribe_outcome];
     if plan.includes(Stage::Feedback) {
         outcomes.push(run_feedback_step(
             config,
             profile_name,
             profile,
+            target_speakers,
             transcript,
             false,
             interactive,
@@ -353,6 +386,7 @@ fn run_transcribe_step(
     config: &Config,
     profile_name: &str,
     profile: &Profile,
+    target_speakers: &[String],
     input: TranscriptionInput,
     force: bool,
     interactive: bool,
@@ -376,9 +410,12 @@ fn run_transcribe_step(
         &input.media,
         profile_name,
         profile,
-        &config.transcription.model,
-        force,
-        interactive,
+        transcribe::TranscribeOptions {
+            model: &config.transcription.model,
+            target_speakers,
+            force,
+            interactive,
+        },
     )?;
     let transcript = result.transcript.clone();
     let artifacts = BTreeMap::from([
@@ -401,6 +438,7 @@ fn run_feedback_step(
     config: &Config,
     profile_name: &str,
     profile: &Profile,
+    target_speakers: &[String],
     transcript: PathBuf,
     force: bool,
     interactive: bool,
@@ -423,6 +461,7 @@ fn run_feedback_step(
         config,
         profile_name,
         profile,
+        target_speakers,
         &transcript,
         force,
         interactive,
@@ -540,9 +579,6 @@ fn effective_profile(
     if let Some(value) = args.call_goal {
         profile.call_goal = value;
     }
-    if !args.subject_speakers.is_empty() {
-        profile.subject_speakers = args.subject_speakers;
-    }
     if !args.modules.is_empty() {
         profile.modules = args.modules;
     }
@@ -585,10 +621,6 @@ fn prompt_profile(mut profile: Profile) -> Result<Profile> {
     profile.subject_role = prompt_text("subject_role", &profile.subject_role)?;
     profile.source_language = prompt_text("source_language", &profile.source_language)?;
     profile.call_goal = prompt_text("call_goal", &profile.call_goal)?;
-    profile.subject_speakers = split_list(&prompt_text(
-        "subject_speakers (comma-separated)",
-        &profile.subject_speakers.join(", "),
-    )?);
     profile.modules = split_list(&prompt_text(
         "modules (comma-separated)",
         &profile.modules.join(", "),
@@ -757,7 +789,6 @@ fn effective_json(profile_name: &str, profile: &Profile, command: Value) -> Valu
             "source_language": profile.source_language,
             "report_language": config::REPORT_LANGUAGE,
             "call_goal": profile.call_goal,
-            "subject_speakers": profile.subject_speakers,
             "modules": profile.modules,
         },
         "command": command,

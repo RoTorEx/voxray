@@ -85,7 +85,7 @@ impl std::fmt::Display for SpeakerMappingRequired {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "Speaker mapping is required; retry with --target-speaker or --subject-speaker"
+            "Speaker mapping is required; retry with repeated --target-speaker"
         )
     }
 }
@@ -98,6 +98,7 @@ impl Transcript {
         model: &str,
         language: &str,
         profile: &Profile,
+        target_speakers: &[String],
         transcription_duration_ms: u128,
         interactive: bool,
     ) -> Result<Self> {
@@ -160,11 +161,16 @@ impl Transcript {
             speaker_mapping: BTreeMap::new(),
             segments,
         };
-        transcript.assign_speakers(profile, interactive)?;
+        transcript.assign_speakers(profile, target_speakers, interactive)?;
         Ok(transcript)
     }
 
-    pub fn from_legacy_text(content: &str, profile: &Profile, interactive: bool) -> Result<Self> {
+    pub fn from_legacy_text(
+        content: &str,
+        profile: &Profile,
+        target_speakers: &[String],
+        interactive: bool,
+    ) -> Result<Self> {
         let mut segments = parse_readable_text(content, profile);
         if segments.is_empty() {
             segments = parse_old_text(content);
@@ -190,7 +196,7 @@ impl Transcript {
             speaker_mapping: BTreeMap::new(),
             segments,
         };
-        transcript.assign_speakers(profile, interactive)?;
+        transcript.assign_speakers(profile, target_speakers, interactive)?;
         Ok(transcript)
     }
 
@@ -288,14 +294,19 @@ impl Transcript {
         }
     }
 
-    fn assign_speakers(&mut self, profile: &Profile, interactive: bool) -> Result<()> {
+    fn assign_speakers(
+        &mut self,
+        profile: &Profile,
+        target_speakers: &[String],
+        interactive: bool,
+    ) -> Result<()> {
         let speakers: BTreeSet<String> = self
             .segments
             .iter()
             .map(|segment| segment.raw_speaker_id.clone())
             .collect();
-        let target_speakers = if !profile.subject_speakers.is_empty() {
-            profile.subject_speakers.clone()
+        let target_speakers = if !target_speakers.is_empty() {
+            target_speakers.to_vec()
         } else if let Some(named) = speakers
             .iter()
             .find(|speaker| speaker.eq_ignore_ascii_case(&profile.subject_name))
@@ -609,14 +620,15 @@ mod tests {
             subject_role: "seller".to_string(),
             source_language: "en".to_string(),
             call_goal: String::new(),
-            subject_speakers: vec!["Speaker 1".to_string()],
         }
     }
 
     #[test]
     fn imports_legacy_transcript_and_computes_metrics() {
         let input = "Speaker 1\n00:01\nUh hello?\n\nSpeaker 2\n00:03\nHello.\n\nSpeaker 1\n00:05\nSo let us begin.\n";
-        let transcript = Transcript::from_legacy_text(input, &profile(), false).unwrap();
+        let transcript =
+            Transcript::from_legacy_text(input, &profile(), &["Speaker 1".to_string()], false)
+                .unwrap();
         let metrics = transcript.metrics("target");
         assert_eq!(transcript.segments.len(), 3);
         assert_eq!(metrics.participants["target"].questions, 1);
@@ -636,6 +648,7 @@ mod tests {
             "whisper-large-v3",
             "en",
             &profile(),
+            &["Speaker 1".to_string()],
             100,
             false,
         )

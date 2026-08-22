@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-22
+
 ### Changed
 
 - Made `setup-config` include a safe dummy profile with every supported profile

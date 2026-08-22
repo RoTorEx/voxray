@@ -125,6 +125,18 @@ fn main() {
 }
 
 fn run(cli: Cli) -> Result<CommandOutcome> {
+    if matches!(&cli.command, Commands::Version) {
+        return Ok(CommandOutcome {
+            status: "ok",
+            command: "version",
+            result: env!("CARGO_PKG_VERSION").to_string(),
+            effective: json!({}),
+            artifacts: BTreeMap::new(),
+            quick_review: None,
+            through: None,
+            steps: Vec::new(),
+        });
+    }
     if matches!(&cli.command, Commands::Update) {
         let binary = update::run()?;
         return Ok(CommandOutcome {
@@ -241,6 +253,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
         Commands::SetupConfig => {
             unreachable!("setup-config returns before configuration is loaded")
         }
+        Commands::Version => unreachable!("version returns before configuration is loaded"),
     }
 }
 
@@ -803,6 +816,10 @@ fn show_effective(command: &str, effective: &Value) {
 }
 
 fn print_human_outcome(outcome: &CommandOutcome) {
+    if outcome.command == "version" {
+        println!("voxray {}", outcome.result);
+        return;
+    }
     println!("{}: {}", outcome.command, outcome.result);
     for step in &outcome.steps {
         println!("{}: {}", step.command, step.result);

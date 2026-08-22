@@ -22,6 +22,9 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
+    /// Print the installed CLI version
+    Version,
+
     /// Install the latest GitHub Release
     Update,
 
@@ -216,6 +219,14 @@ mod tests {
         assert!(matches!(
             Cli::try_parse_from(["voxray", "update"]).unwrap().command,
             Commands::Update
+        ));
+    }
+
+    #[test]
+    fn parses_version_command() {
+        assert!(matches!(
+            Cli::try_parse_from(["voxray", "version"]).unwrap().command,
+            Commands::Version
         ));
     }
 

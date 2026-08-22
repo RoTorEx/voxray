@@ -2,7 +2,7 @@
 
 Personal macOS CLI for storing, transcribing, and reviewing calls.
 
-Voxray has three commands:
+Voxray has three workflow commands:
 
 - `voxray inbox` stores one recording from an inbox or explicit path.
 - `voxray transcribe` creates one `transcript.txt` and one technical `call.json`.
@@ -47,7 +47,12 @@ For a development build instead:
 make install-local
 ```
 
-Verify the installed version with `voxray --version`.
+Verify the installed version with either command:
+
+```bash
+voxray version
+voxray --version
+```
 
 ## Configuration
 

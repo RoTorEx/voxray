@@ -4,6 +4,11 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+### Added
+
+- Added `voxray version` to print the installed CLI version without requiring a
+  config or API token; `voxray --version` remains supported.
+
 ## [0.3.1] - 2026-08-22
 
 ### Changed

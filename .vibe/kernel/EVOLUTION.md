@@ -57,7 +57,10 @@ fields:
 
 Do not paste raw conversations, secrets, private payloads, or unnecessary
 project details. A future agent must understand the rule without access to the
-originating session.
+originating session. Use plain language and keep one canonical home for each
+idea. Do not restate a rule elsewhere: link or route to it. When new evidence
+changes a rule, repair or replace the canonical text instead of adding a
+near-duplicate.
 
 From a child project, append a proposal to `<KERNEL_SOURCE>/FEEDBACK.md`, where
 `<KERNEL_SOURCE>` is the path stored in `.vibe/KERNEL_SOURCE`. Do not edit parent
@@ -104,6 +107,17 @@ provenance and repeated failures. Normal child work must not depend on session
 history access, and history must never be copied into instructions wholesale.
 
 ## Adoption notes
+
+### 1.1.2
+
+- Pull the clearer one-rule-one-home writing contract and the initial-commit
+  convention.
+- Existing history is not rewritten. Apply `Initial commit` only to repositories
+  that do not yet have a first commit.
+- Local Makefiles should expose only real capabilities; projects without a real
+  release process omit release targets.
+- Remove legacy kernel-managed `.githooks` and its local `core.hooksPath` during
+  adoption; Stage 1.x no longer distributes or requires Git hooks.
 
 ### 1.1.1
 

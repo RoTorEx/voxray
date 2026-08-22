@@ -68,6 +68,9 @@ Read-only, audit-only, and proposal-only requests do not create commits.
 - Include only files belonging to the task.
 - Never use force push or history-rewriting/destructive Git commands by default.
 - Do not stash, reset, discard, or overwrite user changes without permission.
+- In a repository with no commits, create the first commit with the exact subject
+  `Initial commit`. It contains only the operational foundation; add product
+  details and implementation in later task commits.
 
 ## Make command contract
 

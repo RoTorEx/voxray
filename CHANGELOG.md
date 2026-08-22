@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-22
+
 ### Added
 
 - Added `voxray version` to print the installed CLI version without requiring a

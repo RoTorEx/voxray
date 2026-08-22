@@ -22,6 +22,8 @@ This project uses committed local copies of the Vibecoding Kernel.
   module from `business/*`.
 - Do not edit `.vibe/kernel/*` manually or read the parent kernel during normal
   work. Refresh the local copy with `make vibe-pull`.
+- When a reusable workflow improvement belongs in the parent, run
+  `make vibe-propose`; it appends a reviewable proposal without changing rules.
 
 <!-- VIBE:KERNEL_ROUTING_END -->
 

@@ -62,10 +62,27 @@ idea. Do not restate a rule elsewhere: link or route to it. When new evidence
 changes a rule, repair or replace the canonical text instead of adding a
 near-duplicate.
 
-From a child project, append a proposal to `<KERNEL_SOURCE>/FEEDBACK.md`, where
-`<KERNEL_SOURCE>` is the path stored in `.vibe/KERNEL_SOURCE`. Do not edit parent
-core files from the child. If filesystem access prevents the append, return a
-ready-to-append proposal in the final report; the local task still completes.
+### Submission algorithm
+
+When feedback belongs in the kernel, or the user asks to update parent rules:
+
+1. Repair local truth and complete the child change first; kernel feedback must
+   not block it.
+2. If `make vibe-propose` is unavailable, run `make vibe-pull`, review its diff,
+   and retry the command.
+3. Run exactly `make vibe-propose` and answer its prompts from known evidence;
+   do not invent missing facts.
+4. If writing to the parent needs filesystem approval, request approval to
+   rerun that same stable command.
+5. Never manually edit the parent's `FEEDBACK.md`, `core/*`, or other files from
+   a child. If the command still cannot run, report the structured proposal and
+   blocker in the final response without writing to the parent.
+6. Continue child work after submission. A proposal changes no rule until the
+   parent reviews it and releases a new version.
+
+`make vibe-propose` is the only child-to-parent write path. It appends one
+structured proposal to the configured parent's `FEEDBACK.md` and changes
+nothing else.
 
 ## 4. Review in the parent
 
@@ -107,6 +124,13 @@ provenance and repeated failures. Normal child work must not depend on session
 history access, and history must never be copied into instructions wholesale.
 
 ## Adoption notes
+
+### 1.2.0
+
+- Run `make vibe-pull` once. It adds the managed `vibe-propose` Make target
+  while preserving every project-owned byte outside kernel markers.
+- Submit reusable feedback only through `make vibe-propose`; do not manually
+  edit parent files from a child.
 
 ### 1.1.2
 

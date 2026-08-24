@@ -104,9 +104,14 @@ CLI override in interactive and non-interactive operation. Resolution order is:
 CLI flag -> selected profile -> [default] -> built-in safe default
 ```
 
-Interactive operation shows every effective profile value, allows it to be
-edited, then shows the input, destination, and command-specific values before
-running. Enter accepts the displayed value.
+Interactive operation uses the selected profile without walking through all of
+its values. Add `--edit-profile` to edit those values for one run. Text prompts
+start empty and Enter accepts the displayed default, so typing a call name
+replaces the recording basename cleanly.
+
+Resolved profile, destination, and command-specific values are kept out of the
+normal human-readable output. Add `--show-effective` to print them before each
+stage for diagnostics; `--json` always includes them in the structured result.
 
 `setup-config` includes a safe `[profiles.dummy]` containing every profile
 field. Its paths are placeholders and its empty `modules` list keeps analysis
@@ -186,6 +191,12 @@ Interactive:
 
 ```bash
 voxray inbox
+```
+
+Choose a profile and override its values for one run when needed:
+
+```bash
+voxray inbox --profile sales --edit-profile --show-effective
 ```
 
 Non-interactive:

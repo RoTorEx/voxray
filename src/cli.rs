@@ -16,6 +16,14 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub json: bool,
 
+    /// Prompt to edit every selected profile value for this run
+    #[arg(long, global = true, conflicts_with = "non_interactive")]
+    pub edit_profile: bool,
+
+    /// Print resolved parameters before each command runs
+    #[arg(long, global = true)]
+    pub show_effective: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -276,6 +284,22 @@ mod tests {
         };
         assert_eq!(args.profile.modules, ["sales", "english"]);
         assert_eq!(args.profile.target_speakers, ["Speaker 1"]);
+    }
+
+    #[test]
+    fn parses_interactive_diagnostic_flags() {
+        let cli =
+            Cli::try_parse_from(["voxray", "inbox", "--edit-profile", "--show-effective"]).unwrap();
+        assert!(cli.edit_profile);
+        assert!(cli.show_effective);
+    }
+
+    #[test]
+    fn rejects_edit_profile_in_non_interactive_mode() {
+        assert!(
+            Cli::try_parse_from(["voxray", "inbox", "--edit-profile", "--non-interactive",])
+                .is_err()
+        );
     }
 
     #[test]

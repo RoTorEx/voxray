@@ -55,6 +55,12 @@ struct TranscriptionInput {
     media: PathBuf,
 }
 
+#[derive(Clone, Copy)]
+struct Presentation {
+    interactive: bool,
+    show_effective: bool,
+}
+
 fn main() {
     let started = Instant::now();
     let raw_args: Vec<String> = std::env::args().collect();
@@ -199,13 +205,21 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
     if config.analysis_enabled() {
         analysis::require_api_key()?;
     }
-    let interactive = !cli.non_interactive;
+    let presentation = Presentation {
+        interactive: !cli.non_interactive,
+        show_effective: cli.show_effective,
+    };
+    let edit_profile = cli.edit_profile;
     match cli.command {
         Commands::Inbox(args) => {
             let plan = Plan::new(Stage::Inbox, args.through.map(Into::into))?;
             let target_speakers = args.profile.target_speakers.clone();
-            let (profile_name, profile) =
-                effective_profile(&config, args.profile.clone(), interactive)?;
+            let (profile_name, profile) = effective_profile(
+                &config,
+                args.profile.clone(),
+                presentation.interactive,
+                edit_profile,
+            )?;
             run_from_inbox(
                 &config,
                 &profile_name,
@@ -213,14 +227,18 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 &target_speakers,
                 args,
                 plan,
-                interactive,
+                presentation,
             )
         }
         Commands::Transcribe(args) => {
             let plan = Plan::new(Stage::Transcribe, args.through.map(Into::into))?;
             let target_speakers = args.profile.target_speakers.clone();
-            let (profile_name, profile) =
-                effective_profile(&config, args.profile.clone(), interactive)?;
+            let (profile_name, profile) = effective_profile(
+                &config,
+                args.profile.clone(),
+                presentation.interactive,
+                edit_profile,
+            )?;
             run_from_transcribe(
                 &config,
                 &profile_name,
@@ -228,14 +246,27 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 &target_speakers,
                 args,
                 plan,
-                interactive,
+                presentation,
             )
         }
         Commands::Feedback(args) => {
             let target_speakers = args.profile.target_speakers.clone();
-            let (profile_name, profile) = effective_profile(&config, args.profile, interactive)?;
-            let transcript = resolve_transcript(args.transcript, &profile.calls_dir, interactive)?;
-            let force = prompt_force(args.force, interactive, "Replace existing feedback?")?;
+            let (profile_name, profile) = effective_profile(
+                &config,
+                args.profile,
+                presentation.interactive,
+                edit_profile,
+            )?;
+            let transcript = resolve_transcript(
+                args.transcript,
+                &profile.calls_dir,
+                presentation.interactive,
+            )?;
+            let force = prompt_force(
+                args.force,
+                presentation.interactive,
+                "Replace existing feedback?",
+            )?;
             run_feedback_step(
                 &config,
                 &profile_name,
@@ -243,7 +274,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 &target_speakers,
                 transcript,
                 force,
-                interactive,
+                presentation,
             )
         }
         Commands::Update => unreachable!("update returns before configuration is loaded"),
@@ -264,19 +295,19 @@ fn run_from_inbox(
     target_speakers: &[String],
     args: InboxArgs,
     plan: Plan,
-    interactive: bool,
+    presentation: Presentation,
 ) -> Result<CommandOutcome> {
-    let source = resolve_recording(args.recording, &profile.inbox_dir, interactive)?;
+    let source = resolve_recording(args.recording, &profile.inbox_dir, presentation.interactive)?;
     let default_name = source
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or("recording");
     let name = match args.name {
         Some(name) => name,
-        None if interactive => prompt_text("Call name", default_name)?,
+        None if presentation.interactive => prompt_text("Call name", default_name)?,
         None => default_name.to_string(),
     };
-    let move_source = if interactive && !args.r#move && !args.copy {
+    let move_source = if presentation.interactive && !args.r#move && !args.copy {
         Select::new("Source action:", vec!["copy", "move"])
             .prompt()
             .map_err(|error| anyhow::anyhow!("Failed to select source action: {error}"))?
@@ -285,8 +316,14 @@ fn run_from_inbox(
         args.r#move
     };
 
-    let (inbox_outcome, recording) =
-        run_inbox_step(profile_name, profile, source, name, move_source)?;
+    let (inbox_outcome, recording) = run_inbox_step(
+        profile_name,
+        profile,
+        source,
+        name,
+        move_source,
+        presentation.show_effective,
+    )?;
     let mut outcomes = vec![inbox_outcome];
     let mut transcript = None;
 
@@ -298,7 +335,7 @@ fn run_from_inbox(
             target_speakers,
             recording,
             false,
-            interactive,
+            presentation,
         )?;
         outcomes.push(outcome);
         transcript = Some(path);
@@ -312,7 +349,7 @@ fn run_from_inbox(
             target_speakers,
             transcript,
             false,
-            interactive,
+            presentation,
         )?);
     }
     Ok(finish_workflow(Stage::Inbox, &plan, outcomes))
@@ -325,14 +362,19 @@ fn run_from_transcribe(
     target_speakers: &[String],
     args: TranscribeArgs,
     plan: Plan,
-    interactive: bool,
+    presentation: Presentation,
 ) -> Result<CommandOutcome> {
-    let recording = resolve_recording(args.recording, &profile.calls_dir, interactive)?;
+    let recording =
+        resolve_recording(args.recording, &profile.calls_dir, presentation.interactive)?;
     let input = TranscriptionInput {
         media: recording.clone(),
         recording,
     };
-    let force = prompt_force(args.force, interactive, "Replace existing transcript?")?;
+    let force = prompt_force(
+        args.force,
+        presentation.interactive,
+        "Replace existing transcript?",
+    )?;
     let (transcribe_outcome, transcript) = run_transcribe_step(
         config,
         profile_name,
@@ -340,7 +382,7 @@ fn run_from_transcribe(
         target_speakers,
         input,
         force,
-        interactive,
+        presentation,
     )?;
     let mut outcomes = vec![transcribe_outcome];
     if plan.includes(Stage::Feedback) {
@@ -351,7 +393,7 @@ fn run_from_transcribe(
             target_speakers,
             transcript,
             false,
-            interactive,
+            presentation,
         )?);
     }
     Ok(finish_workflow(Stage::Transcribe, &plan, outcomes))
@@ -363,6 +405,7 @@ fn run_inbox_step(
     source: PathBuf,
     name: String,
     move_source: bool,
+    show_effective: bool,
 ) -> Result<(CommandOutcome, TranscriptionInput)> {
     let plan = inbox::plan(&source, &name, profile)?;
     let effective = effective_json(
@@ -376,7 +419,7 @@ fn run_inbox_step(
             "derived_audio": plan.derived_audio,
         }),
     );
-    show_effective("inbox", &effective);
+    preview_effective(show_effective, "inbox", &effective);
     let result = inbox::run(&source, &name, move_source, profile)?;
     let transcription_input = TranscriptionInput {
         recording: result.recording.clone(),
@@ -402,7 +445,7 @@ fn run_transcribe_step(
     target_speakers: &[String],
     input: TranscriptionInput,
     force: bool,
-    interactive: bool,
+    presentation: Presentation,
 ) -> Result<(CommandOutcome, PathBuf)> {
     let paths = call::CallPaths::from_recording(&input.recording)?;
     let effective = effective_json(
@@ -417,7 +460,7 @@ fn run_transcribe_step(
             "call_json": paths.manifest,
         }),
     );
-    show_effective("transcribe", &effective);
+    preview_effective(presentation.show_effective, "transcribe", &effective);
     let result = transcribe::run(
         &input.recording,
         &input.media,
@@ -427,7 +470,7 @@ fn run_transcribe_step(
             model: &config.transcription.model,
             target_speakers,
             force,
-            interactive,
+            interactive: presentation.interactive,
         },
     )?;
     let transcript = result.transcript.clone();
@@ -454,7 +497,7 @@ fn run_feedback_step(
     target_speakers: &[String],
     transcript: PathBuf,
     force: bool,
-    interactive: bool,
+    presentation: Presentation,
 ) -> Result<CommandOutcome> {
     let paths = call::CallPaths::from_transcript(&transcript)?;
     let effective = effective_json(
@@ -469,7 +512,7 @@ fn run_feedback_step(
             "call_json": paths.manifest,
         }),
     );
-    show_effective("feedback", &effective);
+    preview_effective(presentation.show_effective, "feedback", &effective);
     let result = analysis::run(
         config,
         profile_name,
@@ -477,7 +520,7 @@ fn run_feedback_step(
         target_speakers,
         &transcript,
         force,
-        interactive,
+        presentation.interactive,
     )?;
     let mut artifacts = BTreeMap::from([(
         "feedback".to_string(),
@@ -557,6 +600,7 @@ fn effective_profile(
     config: &Config,
     args: ProfileArgs,
     interactive: bool,
+    edit_profile: bool,
 ) -> Result<(String, Profile)> {
     let profile_name = match args.profile {
         Some(name) => name,
@@ -596,7 +640,7 @@ fn effective_profile(
         profile.modules = args.modules;
     }
 
-    if interactive {
+    if interactive && edit_profile {
         profile = prompt_profile(profile)?;
     }
     profile.mode.get_or_insert(Mode::Folder);
@@ -643,7 +687,7 @@ fn prompt_profile(mut profile: Profile) -> Result<Profile> {
 
 fn prompt_text(label: &str, default: &str) -> Result<String> {
     Text::new(label)
-        .with_initial_value(default)
+        .with_default(default)
         .prompt()
         .map_err(|error| anyhow::anyhow!("Failed to read {label}: {error}"))
 }
@@ -808,7 +852,10 @@ fn effective_json(profile_name: &str, profile: &Profile, command: Value) -> Valu
     })
 }
 
-fn show_effective(command: &str, effective: &Value) {
+fn preview_effective(enabled: bool, command: &str, effective: &Value) {
+    if !enabled {
+        return;
+    }
     eprintln!("\nEffective {command} parameters:");
     if let Ok(text) = serde_json::to_string_pretty(effective) {
         eprintln!("{text}\n");

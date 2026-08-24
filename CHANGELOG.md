@@ -4,6 +4,14 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Simplified interactive commands: profile values are edited only with
+  `--edit-profile`, and verbose effective-parameter previews are printed only
+  with `--show-effective`.
+- Made text-prompt defaults non-editing fallbacks so a typed call name reliably
+  becomes the folder or sidecar basename.
+
 ## [0.3.2] - 2026-08-22
 
 ### Added

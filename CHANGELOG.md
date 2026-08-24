@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-08-24
+
 ### Changed
 
 - Simplified interactive commands: profile values are edited only with

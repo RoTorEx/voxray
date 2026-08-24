@@ -147,7 +147,7 @@ pub struct TranscribeArgs {
     #[arg(long)]
     pub recording: Option<PathBuf>,
 
-    /// Safely replace existing transcript.txt and call.json
+    /// Safely replace an existing transcript.txt
     #[arg(long)]
     pub force: bool,
 

@@ -24,8 +24,6 @@ modules = []
 
 [transcription]
 model = "whisperkit:openai_whisper-large-v3"
-timestamps = true
-speakers = true
 
 [analysis]
 model = "gpt-5.6-terra"

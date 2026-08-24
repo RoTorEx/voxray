@@ -119,12 +119,6 @@ disabled until the profile is deliberately configured.
 
 ### Configuration reference
 
-Top-level options:
-
-| Option | Meaning | Default |
-| --- | --- | --- |
-| `languages` | Choices presented for interactive source-language selection | `["auto", "en", "ru"]` |
-
 `[default]` supplies the fallback profile. `[profiles.<name>]` uses the same
 fields for named profiles:
 
@@ -153,8 +147,6 @@ missing required paths from `[default]`.
 | Option | Meaning | Default |
 | --- | --- | --- |
 | `model` | Exact model identifier passed to MacWhisper CLI | `whisperkit:openai_whisper-large-v3` |
-| `timestamps` | Request timestamped transcription output | `true` |
-| `speakers` | Request speaker diarization | `true` |
 
 `[analysis]` options:
 

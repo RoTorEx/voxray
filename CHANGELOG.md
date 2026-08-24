@@ -13,6 +13,8 @@ Tracks real product progress.
   it reliably becomes the folder or sidecar basename.
 - Reduced transcription to producing `transcript.txt` from media. Participant
   mapping, coaching metrics, and `call.json` now begin in `feedback`.
+- Removed the unused `languages`, `transcription.timestamps`, and
+  `transcription.speakers` configuration keys and their stale documentation.
 
 ## [0.3.2] - 2026-08-22
 

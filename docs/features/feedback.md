@@ -5,9 +5,9 @@ plain-text `feedback.txt`.
 
 ## Inputs
 
-The selected profile prefills call type, target name and role, call goal,
-speaker IDs, and active modules. Interactive prompts and non-interactive flags
-modify the same effective values.
+The selected profile prefills call type, target name and role, call goal, and
+active modules. Target speaker IDs are supplied per call or selected
+interactively during feedback; they are not profile configuration.
 
 If the adjacent `call.json` exists, feedback uses its normalized segments,
 speaker mapping, timestamps, and metrics. Without it, the command parses the

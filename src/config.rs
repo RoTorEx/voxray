@@ -14,8 +14,6 @@ pub struct Config {
     pub default: Profile,
     #[serde(default)]
     pub profiles: HashMap<String, Profile>,
-    #[serde(default = "default_languages")]
-    pub languages: Vec<String>,
     #[serde(default, alias = "feedback")]
     pub analysis: AnalysisConfig,
     #[serde(default)]
@@ -49,28 +47,18 @@ impl Default for AnalysisConfig {
 pub struct TranscriptionConfig {
     #[serde(default = "default_transcription_model")]
     pub model: String,
-    #[serde(default = "default_true")]
-    pub timestamps: bool,
-    #[serde(default = "default_true")]
-    pub speakers: bool,
 }
 
 impl Default for TranscriptionConfig {
     fn default() -> Self {
         Self {
             model: default_transcription_model(),
-            timestamps: true,
-            speakers: true,
         }
     }
 }
 
 fn default_transcription_model() -> String {
     "whisperkit:openai_whisper-large-v3".to_string()
-}
-
-fn default_true() -> bool {
-    true
 }
 
 fn default_feedback_model() -> String {
@@ -158,10 +146,6 @@ fn dummy_profile() -> Profile {
     }
 }
 
-fn default_languages() -> Vec<String> {
-    vec!["auto".to_string(), "en".to_string(), "ru".to_string()]
-}
-
 impl Config {
     pub fn path() -> Result<PathBuf> {
         Ok(app_home()?.join("config.toml"))
@@ -190,7 +174,6 @@ impl Config {
         Config {
             default: default_profile(),
             profiles: HashMap::from([("dummy".to_string(), dummy_profile())]),
-            languages: default_languages(),
             analysis: AnalysisConfig::default(),
             transcription: TranscriptionConfig::default(),
         }
@@ -327,5 +310,13 @@ reasoning_effort = "medium"
         assert_eq!(dummy.date_format.as_deref(), Some("%Y-%m-%d %H-%M"));
         assert!(dummy.modules.is_empty());
         assert!(!config.analysis_enabled());
+    }
+
+    #[test]
+    fn starter_omits_removed_no_op_options() {
+        let serialized = toml::to_string(&Config::starter()).unwrap();
+        assert!(!serialized.contains("languages"));
+        assert!(!serialized.contains("timestamps"));
+        assert!(!serialized.contains("speakers"));
     }
 }

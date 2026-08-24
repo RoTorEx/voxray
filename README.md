@@ -5,7 +5,7 @@ Personal macOS CLI for storing, transcribing, and reviewing calls.
 Voxray has three workflow commands:
 
 - `voxray inbox` stores one recording from an inbox or explicit path.
-- `voxray transcribe` creates one `transcript.txt` and one technical `call.json`.
+- `voxray transcribe` creates one `transcript.txt` from audio or video.
 - `voxray feedback` creates one English `feedback.txt` from a transcript.
 
 Each command runs independently by default. `inbox` and `transcribe` can also
@@ -229,9 +229,9 @@ voxray transcribe --profile sales \
 
 The exact configured model is `whisperkit:openai_whisper-large-v3`. Existing
 derived output is preserved unless `--force` is explicit. Ambiguous speaker
-mapping is optional during transcription: press Enter without selecting an ID
-to keep `Speaker 1/2/...` labels. Personal feedback requires a target speaker;
-choose one when feedback asks, or pass repeated `--target-speaker` flags.
+mapping, participant identity, metrics, and `call.json` are not part of
+transcription. The saved text keeps technical `Speaker 1/2/...` labels.
+Personal feedback resolves its target and creates analysis metadata afterward.
 
 ## Feedback
 

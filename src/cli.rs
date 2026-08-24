@@ -48,7 +48,7 @@ pub enum Commands {
     )]
     Inbox(InboxArgs),
 
-    /// Create transcript.txt and call.json beside one recording
+    /// Create transcript.txt from one recording
     #[command(
         after_help = "Interactive: voxray transcribe\nNon-interactive: voxray transcribe --profile sales --recording /path/call.record.m4a --non-interactive"
     )]

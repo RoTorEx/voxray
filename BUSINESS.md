@@ -8,7 +8,7 @@ library, transcripts, and optional coaching feedback.
 - The operator selects a configured profile and a recording.
 - `inbox` stores the recording under a human-readable call name without
   overwriting an existing call.
-- `transcribe` creates a readable transcript and structured call metadata.
+- `transcribe` converts audio or video into a readable text transcript only.
 - `feedback` evaluates the configured participant against the selected analysis
   modules.
 
@@ -31,9 +31,9 @@ library, transcripts, and optional coaching feedback.
   complete.
 - Profile analysis fields remain available because transcription metadata and
   feedback need call context, evaluated-participant identity, and call goals.
-- Speaker-to-participant mapping is optional during transcription. Skipping it
-  preserves generic speaker labels and never blocks publishing the transcript;
-  personal feedback resolves the target participant only when it is needed.
+- Transcription only publishes text from the recording. It never identifies
+  participants, calculates coaching metrics, or creates analysis metadata;
+  those concerns begin in `feedback` after the transcript exists.
 - API tokens and transcript contents are never written to operational logs.
 
 ## Code map

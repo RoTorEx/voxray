@@ -335,7 +335,6 @@ fn run_from_inbox(
             config,
             profile_name,
             profile,
-            target_speakers,
             recording,
             false,
             presentation,
@@ -378,15 +377,8 @@ fn run_from_transcribe(
         presentation.interactive,
         "Replace existing transcript?",
     )?;
-    let (transcribe_outcome, transcript) = run_transcribe_step(
-        config,
-        profile_name,
-        profile,
-        target_speakers,
-        input,
-        force,
-        presentation,
-    )?;
+    let (transcribe_outcome, transcript) =
+        run_transcribe_step(config, profile_name, profile, input, force, presentation)?;
     let mut outcomes = vec![transcribe_outcome];
     if plan.includes(Stage::Feedback) {
         outcomes.push(run_feedback_step(
@@ -445,7 +437,6 @@ fn run_transcribe_step(
     config: &Config,
     profile_name: &str,
     profile: &Profile,
-    target_speakers: &[String],
     input: TranscriptionInput,
     force: bool,
     presentation: Presentation,
@@ -460,33 +451,23 @@ fn run_transcribe_step(
             "force": force,
             "model": config.transcription.model,
             "transcript": paths.transcript,
-            "call_json": paths.manifest,
         }),
     );
     preview_effective(presentation.show_effective, "transcribe", &effective);
     let result = transcribe::run(
         &input.recording,
         &input.media,
-        profile_name,
         profile,
         transcribe::TranscribeOptions {
             model: &config.transcription.model,
-            target_speakers,
             force,
-            interactive: presentation.interactive,
         },
     )?;
     let transcript = result.transcript.clone();
-    let artifacts = BTreeMap::from([
-        (
-            "transcript".to_string(),
-            result.transcript.display().to_string(),
-        ),
-        (
-            "call_json".to_string(),
-            result.call_json.display().to_string(),
-        ),
-    ]);
+    let artifacts = BTreeMap::from([(
+        "transcript".to_string(),
+        result.transcript.display().to_string(),
+    )]);
     Ok((
         step_outcome("transcribe", result.result, effective, artifacts, None),
         transcript,

@@ -5,8 +5,8 @@ use std::time::Instant;
 use anyhow::{Context, Result, bail};
 use serde::Serialize;
 
-use crate::call::{self, CallManifest, CallPaths};
-use crate::config::{Profile, REPORT_LANGUAGE};
+use crate::call::{self, CallPaths};
+use crate::config::Profile;
 use crate::{logs, storage, transcript};
 
 pub fn extract_audio(video_path: &Path, output_audio: &Path) -> Result<()> {
@@ -35,20 +35,16 @@ pub fn extract_audio(video_path: &Path, output_audio: &Path) -> Result<()> {
 pub struct TranscribeResult {
     pub result: String,
     pub transcript: PathBuf,
-    pub call_json: PathBuf,
 }
 
 pub struct TranscribeOptions<'a> {
     pub model: &'a str,
-    pub target_speakers: &'a [String],
     pub force: bool,
-    pub interactive: bool,
 }
 
 pub fn run(
     recording: &Path,
     transcription_input: &Path,
-    profile_name: &str,
     profile: &Profile,
     options: TranscribeOptions<'_>,
 ) -> Result<TranscribeResult> {
@@ -69,24 +65,8 @@ pub fn run(
         return Ok(TranscribeResult {
             result: "already_exists".to_string(),
             transcript: paths.transcript,
-            call_json: paths.manifest,
         });
     }
-
-    let mut manifest = CallManifest::load(&paths.manifest)?
-        .unwrap_or_else(|| CallManifest::new(&paths, profile_name, profile));
-    manifest.schema_version = 3;
-    manifest.name = paths.name.clone();
-    manifest.mode = paths.mode;
-    manifest.profile = profile_name.to_string();
-    manifest.call_type = profile.call_type.clone();
-    manifest.subject_name = profile.subject_name.clone();
-    manifest.subject_role = profile.subject_role.clone();
-    manifest.call_goal = profile.call_goal.clone();
-    manifest.source_language = profile.source_language.clone();
-    manifest.report_language = REPORT_LANGUAGE.to_string();
-    let original_video = (transcription_input != recording).then_some(recording);
-    manifest.set_recording(transcription_input, original_video, &paths.root)?;
 
     let raw_target = paths
         .root
@@ -123,29 +103,10 @@ pub fn run(
         &value,
         options.model,
         &profile.source_language,
-        profile,
-        options.target_speakers,
         started.elapsed().as_millis(),
-        options.interactive,
     )?;
 
-    manifest.speaker_mapping = canonical.speaker_mapping.clone();
-    manifest.metrics = Some(canonical.metrics("target"));
-    manifest.transcript = Some(canonical.clone());
-    manifest.analysis = None;
-    manifest.set_artifact("recording", recording, &paths.root);
-    if transcription_input != recording {
-        manifest.set_artifact("audio", transcription_input, &paths.root);
-    }
-    manifest.set_artifact("transcript", &paths.transcript, &paths.root);
-
-    storage::atomic_write_pair(
-        &paths.manifest,
-        &manifest.to_bytes()?,
-        &paths.transcript,
-        canonical.render_text().as_bytes(),
-    )?;
-    call::remove_legacy_files(&paths)?;
+    storage::atomic_write(&paths.transcript, canonical.render_text().as_bytes())?;
     logs::event(&format!(
         "transcribe_done recording=\"{}\" input=\"{}\" transcript=\"{}\"",
         recording.display(),
@@ -155,6 +116,5 @@ pub fn run(
     Ok(TranscribeResult {
         result: "created".to_string(),
         transcript: paths.transcript,
-        call_json: paths.manifest,
     })
 }

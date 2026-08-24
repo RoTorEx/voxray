@@ -11,8 +11,8 @@ Tracks real product progress.
   with `--show-effective`.
 - Made the interactive call-name prompt require an explicit non-empty value so
   it reliably becomes the folder or sidecar basename.
-- Made speaker mapping optional during transcription; an empty selection keeps
-  generic speaker labels, while personal feedback resolves its target later.
+- Reduced transcription to producing `transcript.txt` from media. Participant
+  mapping, coaching metrics, and `call.json` now begin in `feedback`.
 
 ## [0.3.2] - 2026-08-22
 

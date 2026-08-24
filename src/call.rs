@@ -203,29 +203,6 @@ impl CallManifest {
                 .into_owned(),
         );
     }
-
-    pub fn set_recording(
-        &mut self,
-        media: &Path,
-        original_video: Option<&Path>,
-        root: &Path,
-    ) -> Result<()> {
-        self.recording = Some(RecordingRecord {
-            path: relative(media, root),
-            media_type: if original_video.is_some() {
-                "video"
-            } else {
-                "audio"
-            }
-            .to_string(),
-            original_video_path: original_video.map(|path| relative(path, root)),
-            size_bytes: fs::metadata(media)
-                .with_context(|| format!("Failed to inspect {}", media.display()))?
-                .len(),
-            recorded_at: chrono::Utc::now().to_rfc3339(),
-        });
-        Ok(())
-    }
 }
 
 pub fn remove_legacy_files(paths: &CallPaths) -> Result<()> {
@@ -260,13 +237,6 @@ pub fn remove_legacy_files(paths: &CallPaths) -> Result<()> {
         }
     }
     Ok(())
-}
-
-fn relative(path: &Path, root: &Path) -> String {
-    path.strip_prefix(root)
-        .unwrap_or(path)
-        .to_string_lossy()
-        .into_owned()
 }
 
 fn slug(value: &str) -> String {

@@ -97,10 +97,7 @@ impl Transcript {
         value: &Value,
         model: &str,
         language: &str,
-        profile: &Profile,
-        target_speakers: &[String],
         transcription_duration_ms: u128,
-        interactive: bool,
     ) -> Result<Self> {
         let source_segments = value
             .get("segments")
@@ -161,8 +158,19 @@ impl Transcript {
             speaker_mapping: BTreeMap::new(),
             segments,
         };
-        transcript.assign_speakers(profile, target_speakers, interactive, false)?;
+        transcript.assign_generic_speakers();
         Ok(transcript)
+    }
+
+    fn assign_generic_speakers(&mut self) {
+        self.speaker_mapping.clear();
+        for segment in &mut self.segments {
+            let participant = format!("participant-{}", slug(&segment.raw_speaker_id));
+            self.speaker_mapping
+                .insert(segment.raw_speaker_id.clone(), participant.clone());
+            segment.participant_id = participant;
+            segment.participant_name = segment.raw_speaker_id.clone();
+        }
     }
 
     pub fn from_legacy_text(
@@ -668,16 +676,8 @@ mod tests {
             {"speaker": "Speaker 1", "start": 394000, "end": 398000, "text": "Hello"},
             {"speaker": "Speaker 2", "start": 399000, "end": 401000, "text": "Hi"}
         ]});
-        let transcript = Transcript::from_macwhisper_json(
-            &value,
-            "whisper-large-v3",
-            "en",
-            &profile(),
-            &["Speaker 1".to_string()],
-            100,
-            false,
-        )
-        .unwrap();
+        let transcript =
+            Transcript::from_macwhisper_json(&value, "whisper-large-v3", "en", 100).unwrap();
         assert_eq!(transcript.segments[0].start_seconds, 394.0);
         assert_eq!(
             transcript.metadata.source_timestamp_unit,
@@ -685,26 +685,18 @@ mod tests {
         );
         assert_eq!(
             transcript.render_text(),
-            "[00:06:34] Alex\nHello\n\n[00:06:39] Speaker 2\nHi\n\n"
+            "[00:06:34] Speaker 1\nHello\n\n[00:06:39] Speaker 2\nHi\n\n"
         );
     }
 
     #[test]
-    fn allows_transcription_without_target_speaker_mapping() {
+    fn transcription_keeps_generic_speaker_labels() {
         let value = serde_json::json!({"segments": [
             {"speaker": "Speaker 1", "start": 1000, "end": 2000, "text": "Hello"},
             {"speaker": "Speaker 2", "start": 2000, "end": 3000, "text": "Hi"}
         ]});
-        let mut transcript = Transcript::from_macwhisper_json(
-            &value,
-            "whisper-large-v3",
-            "en",
-            &profile(),
-            &[],
-            100,
-            false,
-        )
-        .unwrap();
+        let mut transcript =
+            Transcript::from_macwhisper_json(&value, "whisper-large-v3", "en", 100).unwrap();
 
         assert!(
             !transcript

@@ -70,6 +70,31 @@ pub fn publish_temp(temp: &Path, target: &Path) -> Result<()> {
     })
 }
 
+pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
+    let temp = temporary_path(path)?;
+    if let Err(error) = write_synced(&temp, bytes) {
+        let _ = fs::remove_file(&temp);
+        return Err(error);
+    }
+
+    let backup = backup_path(path)?;
+    let had_target = path.exists();
+    if had_target {
+        fs::rename(path, &backup)?;
+    }
+    if let Err(error) = fs::rename(&temp, path) {
+        if had_target {
+            let _ = fs::rename(&backup, path);
+        }
+        let _ = fs::remove_file(&temp);
+        return Err(error.into());
+    }
+    if had_target {
+        let _ = fs::remove_file(backup);
+    }
+    Ok(())
+}
+
 pub fn atomic_write_pair(
     first_path: &Path,
     first_bytes: &[u8],
@@ -170,6 +195,19 @@ mod tests {
 
         assert_eq!(fs::read(&analysis).unwrap(), b"two");
         assert_eq!(fs::read(&feedback).unwrap(), b"second");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn publishes_and_replaces_one_file() {
+        let dir = temp_dir();
+        fs::create_dir_all(&dir).unwrap();
+        let transcript = dir.join("transcript.txt");
+
+        atomic_write(&transcript, b"first").unwrap();
+        atomic_write(&transcript, b"second").unwrap();
+
+        assert_eq!(fs::read(&transcript).unwrap(), b"second");
         fs::remove_dir_all(dir).unwrap();
     }
 }

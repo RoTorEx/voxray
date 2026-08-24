@@ -229,8 +229,9 @@ voxray transcribe --profile sales \
 
 The exact configured model is `whisperkit:openai_whisper-large-v3`. Existing
 derived output is preserved unless `--force` is explicit. Ambiguous speaker
-mapping is shown interactively; non-interactive output fails immediately with
-speaker IDs and samples.
+mapping is optional during transcription: press Enter without selecting an ID
+to keep `Speaker 1/2/...` labels. Personal feedback requires a target speaker;
+choose one when feedback asks, or pass repeated `--target-speaker` flags.
 
 ## Feedback
 

@@ -161,7 +161,7 @@ impl Transcript {
             speaker_mapping: BTreeMap::new(),
             segments,
         };
-        transcript.assign_speakers(profile, target_speakers, interactive)?;
+        transcript.assign_speakers(profile, target_speakers, interactive, false)?;
         Ok(transcript)
     }
 
@@ -196,8 +196,24 @@ impl Transcript {
             speaker_mapping: BTreeMap::new(),
             segments,
         };
-        transcript.assign_speakers(profile, target_speakers, interactive)?;
+        transcript.assign_speakers(profile, target_speakers, interactive, true)?;
         Ok(transcript)
+    }
+
+    pub fn ensure_target_mapping(
+        &mut self,
+        profile: &Profile,
+        target_speakers: &[String],
+        interactive: bool,
+    ) -> Result<()> {
+        let already_mapped = self
+            .speaker_mapping
+            .values()
+            .any(|participant| participant == "target");
+        if already_mapped && target_speakers.is_empty() {
+            return Ok(());
+        }
+        self.assign_speakers(profile, target_speakers, interactive, true)
     }
 
     pub fn render_text(&self) -> String {
@@ -299,6 +315,7 @@ impl Transcript {
         profile: &Profile,
         target_speakers: &[String],
         interactive: bool,
+        target_required: bool,
     ) -> Result<()> {
         let speakers: BTreeSet<String> = self
             .segments
@@ -317,23 +334,31 @@ impl Transcript {
         } else if interactive {
             print_speaker_samples(&self.segments, &speakers);
             let options: Vec<String> = speakers.iter().cloned().collect();
+            let help_message = if target_required {
+                "Required for personal feedback; select multiple IDs if one person was split"
+            } else {
+                "Optional for transcription; press Enter to keep generic speaker labels"
+            };
             let selected = inquire::MultiSelect::new(
                 &format!("Which speaker IDs belong to {}?", profile.subject_name),
                 options,
             )
-            .with_help_message("Select multiple IDs if diarization split one person")
+            .with_help_message(help_message)
             .prompt()
             .map_err(|error| anyhow::anyhow!("Failed to select target speakers: {error}"))?;
-            if selected.is_empty() {
+            if selected.is_empty() && target_required {
                 bail!("At least one target speaker must be selected");
             }
             selected
-        } else {
+        } else if target_required {
             return Err(SpeakerMappingRequired {
                 speakers: speaker_samples(&self.segments, &speakers),
             }
             .into());
+        } else {
+            Vec::new()
         };
+        self.speaker_mapping.clear();
         for speaker in &speakers {
             let participant = if target_speakers.contains(speaker) {
                 "target".to_string()
@@ -662,5 +687,37 @@ mod tests {
             transcript.render_text(),
             "[00:06:34] Alex\nHello\n\n[00:06:39] Speaker 2\nHi\n\n"
         );
+    }
+
+    #[test]
+    fn allows_transcription_without_target_speaker_mapping() {
+        let value = serde_json::json!({"segments": [
+            {"speaker": "Speaker 1", "start": 1000, "end": 2000, "text": "Hello"},
+            {"speaker": "Speaker 2", "start": 2000, "end": 3000, "text": "Hi"}
+        ]});
+        let mut transcript = Transcript::from_macwhisper_json(
+            &value,
+            "whisper-large-v3",
+            "en",
+            &profile(),
+            &[],
+            100,
+            false,
+        )
+        .unwrap();
+
+        assert!(
+            !transcript
+                .speaker_mapping
+                .values()
+                .any(|participant| participant == "target")
+        );
+        assert_eq!(transcript.segments[0].participant_name, "Speaker 1");
+
+        transcript
+            .ensure_target_mapping(&profile(), &["Speaker 2".to_string()], false)
+            .unwrap();
+        assert_eq!(transcript.segments[1].participant_id, "target");
+        assert_eq!(transcript.segments[1].participant_name, "Alex");
     }
 }

@@ -143,7 +143,7 @@ pub fn run(
     manifest.source_language = profile.source_language.clone();
     manifest.report_language = REPORT_LANGUAGE.to_string();
 
-    let transcript = match manifest.transcript.clone() {
+    let mut transcript = match manifest.transcript.clone() {
         Some(transcript) => transcript,
         None => {
             let content = fs::read_to_string(transcript_path)
@@ -151,16 +151,7 @@ pub fn run(
             Transcript::from_legacy_text(&content, profile, target_speakers, interactive)?
         }
     };
-    if !transcript
-        .speaker_mapping
-        .values()
-        .any(|participant| participant == "target")
-    {
-        bail!(
-            "Target participant {} is not mapped to a speaker",
-            profile.subject_name
-        );
-    }
+    transcript.ensure_target_mapping(profile, target_speakers, interactive)?;
     let metrics = transcript.metrics("target");
     manifest.speaker_mapping = transcript.speaker_mapping.clone();
     manifest.transcript = Some(transcript.clone());

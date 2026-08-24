@@ -31,6 +31,9 @@ library, transcripts, and optional coaching feedback.
   complete.
 - Profile analysis fields remain available because transcription metadata and
   feedback need call context, evaluated-participant identity, and call goals.
+- Speaker-to-participant mapping is optional during transcription. Skipping it
+  preserves generic speaker labels and never blocks publishing the transcript;
+  personal feedback resolves the target participant only when it is needed.
 - API tokens and transcript contents are never written to operational logs.
 
 ## Code map

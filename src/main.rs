@@ -4,7 +4,10 @@ use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
 use clap::Parser;
-use inquire::{Confirm, Select, Text};
+use inquire::{
+    Confirm, Select, Text,
+    validator::{ErrorMessage, Validation},
+};
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -304,7 +307,7 @@ fn run_from_inbox(
         .unwrap_or("recording");
     let name = match args.name {
         Some(name) => name,
-        None if presentation.interactive => prompt_text("Call name", default_name)?,
+        None if presentation.interactive => prompt_call_name()?,
         None => default_name.to_string(),
     };
     let move_source = if presentation.interactive && !args.r#move && !args.copy {
@@ -692,6 +695,29 @@ fn prompt_text(label: &str, default: &str) -> Result<String> {
         .map_err(|error| anyhow::anyhow!("Failed to read {label}: {error}"))
 }
 
+fn prompt_call_name() -> Result<String> {
+    Text::new("Call name")
+        .with_validator(|value: &str| {
+            if normalize_call_name_input(value).is_none() {
+                Ok(Validation::Invalid(ErrorMessage::Custom(
+                    "Call name is required.".to_string(),
+                )))
+            } else {
+                Ok(Validation::Valid)
+            }
+        })
+        .prompt()
+        .map_err(|error| anyhow::anyhow!("Failed to read Call name: {error}"))
+        .and_then(|value| {
+            normalize_call_name_input(&value).context("Call name unexpectedly became empty")
+        })
+}
+
+fn normalize_call_name_input(value: &str) -> Option<String> {
+    let value = value.trim();
+    (!value.is_empty()).then(|| value.to_string())
+}
+
 fn split_list(value: &str) -> Vec<String> {
     value
         .split(',')
@@ -876,5 +902,20 @@ fn print_human_outcome(outcome: &CommandOutcome) {
     }
     if let Some(quick_review) = &outcome.quick_review {
         println!("\n{quick_review}");
+    }
+}
+
+#[cfg(test)]
+mod main_tests {
+    use super::normalize_call_name_input;
+
+    #[test]
+    fn interactive_call_name_requires_explicit_non_empty_input() {
+        assert_eq!(normalize_call_name_input(""), None);
+        assert_eq!(normalize_call_name_input("   "), None);
+        assert_eq!(
+            normalize_call_name_input("  Sync with Nastya  "),
+            Some("Sync with Nastya".to_string())
+        );
     }
 }

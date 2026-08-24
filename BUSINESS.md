@@ -22,8 +22,9 @@ library, transcripts, and optional coaching feedback.
 
 ## Invariants
 
-- A typed call name determines the folder or file-sidecar basename; the source
-  basename is only the empty-input fallback.
+- Interactive `inbox` requires an explicit non-empty call name unless `--name`
+  was supplied. Only non-interactive operation may fall back to the source
+  basename.
 - Existing recordings are never overwritten.
 - Human-readable output stays concise by default. Full resolved parameters are
   diagnostic output enabled by `--show-effective`; JSON output remains

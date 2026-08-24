@@ -105,9 +105,9 @@ CLI flag -> selected profile -> [default] -> built-in safe default
 ```
 
 Interactive operation uses the selected profile without walking through all of
-its values. Add `--edit-profile` to edit those values for one run. Text prompts
-start empty and Enter accepts the displayed default, so typing a call name
-replaces the recording basename cleanly.
+its values. Add `--edit-profile` to edit those values for one run. Interactive
+`inbox` always asks for a non-empty call name when `--name` was not supplied;
+there is no basename default to accept accidentally.
 
 Resolved profile, destination, and command-specific values are kept out of the
 normal human-readable output. Add `--show-effective` to print them before each

@@ -4,6 +4,7 @@ Thumbs.db
 
 # Env / secrets
 config.toml
+!/.cargo/config.toml
 .env
 .env.*
 !.env.example

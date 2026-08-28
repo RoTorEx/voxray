@@ -1,0 +1,3 @@
+[build]
+# Keep direct Cargo and IDE builds outside the Google Drive-backed checkout.
+target-dir = "/Users/alex/construction_side/voxray/target"

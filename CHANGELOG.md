@@ -4,6 +4,11 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Routed direct Cargo and IDE build output to
+  `~/construction_side/voxray/target`.
+
 ## [0.3.4] - 2026-08-24
 
 ## [0.3.3] - 2026-08-24

@@ -7,7 +7,7 @@ use anyhow::{Context, Result, bail};
 use serde::Serialize;
 
 use crate::call::{self, CallPaths};
-use crate::config::Profile;
+use crate::config::TRANSCRIPTION_LANGUAGE;
 use crate::{logs, storage, transcript};
 
 pub fn extract_audio(video_path: &Path, output_audio: &Path) -> Result<()> {
@@ -55,7 +55,6 @@ pub struct TranscribeOptions<'a> {
 pub fn run(
     recording: &Path,
     transcription_input: &Path,
-    profile: &Profile,
     options: TranscribeOptions<'_>,
 ) -> Result<TranscribeResult> {
     call::validate_file(recording, "Recording")?;
@@ -90,7 +89,7 @@ pub fn run(
         .arg("--model")
         .arg(options.model)
         .arg("--language")
-        .arg(&profile.source_language)
+        .arg(TRANSCRIPTION_LANGUAGE)
         .arg("--output")
         .arg(&raw_target)
         .arg(transcription_input)
@@ -112,7 +111,7 @@ pub fn run(
     let canonical = transcript::Transcript::from_macwhisper_json(
         &value,
         options.model,
-        &profile.source_language,
+        TRANSCRIPTION_LANGUAGE,
         started.elapsed().as_millis(),
     )?;
 

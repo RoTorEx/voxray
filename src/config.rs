@@ -7,6 +7,7 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::PathBuf;
 
 pub const REPORT_LANGUAGE: &str = "en";
+pub const TRANSCRIPTION_LANGUAGE: &str = "auto";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -79,32 +80,6 @@ pub struct Profile {
     /// Analysis modules enabled for this profile. `feedback` remains a read alias.
     #[serde(default, alias = "feedback")]
     pub modules: Vec<String>,
-    #[serde(default = "default_call_type")]
-    pub call_type: String,
-    #[serde(default = "default_subject_name")]
-    pub subject_name: String,
-    #[serde(default = "default_subject_role")]
-    pub subject_role: String,
-    #[serde(default = "default_source_language")]
-    pub source_language: String,
-    #[serde(default)]
-    pub call_goal: String,
-}
-
-fn default_call_type() -> String {
-    "general".to_string()
-}
-
-fn default_subject_name() -> String {
-    "Alex".to_string()
-}
-
-fn default_subject_role() -> String {
-    "participant".to_string()
-}
-
-fn default_source_language() -> String {
-    "auto".to_string()
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -123,11 +98,6 @@ fn default_profile() -> Profile {
         date_format: None,
         mode: None,
         modules: Vec::new(),
-        call_type: default_call_type(),
-        subject_name: default_subject_name(),
-        subject_role: default_subject_role(),
-        source_language: default_source_language(),
-        call_goal: String::new(),
     }
 }
 
@@ -138,11 +108,6 @@ fn dummy_profile() -> Profile {
         date_format: Some("%Y-%m-%d %H-%M".to_string()),
         mode: Some(Mode::Folder),
         modules: Vec::new(),
-        call_type: "general".to_string(),
-        subject_name: "Your Name".to_string(),
-        subject_role: "participant".to_string(),
-        source_language: "auto".to_string(),
-        call_goal: "Describe the desired outcome".to_string(),
     }
 }
 
@@ -315,7 +280,11 @@ reasoning_effort = "medium"
     #[test]
     fn starter_omits_removed_no_op_options() {
         let serialized = toml::to_string(&Config::starter()).unwrap();
-        assert!(!serialized.contains("languages"));
+        assert!(!serialized.contains("call_type"));
+        assert!(!serialized.contains("subject_name"));
+        assert!(!serialized.contains("subject_role"));
+        assert!(!serialized.contains("source_language"));
+        assert!(!serialized.contains("call_goal"));
         assert!(!serialized.contains("timestamps"));
         assert!(!serialized.contains("speakers"));
     }

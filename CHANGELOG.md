@@ -4,6 +4,13 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Removed profile-level call type, participant identity and role, transcription
+  language, and call goal. Transcription now always uses automatic language
+  detection, while feedback accepts optional per-call context interactively or
+  through `--context`.
+
 ## [0.4.0] - 2026-08-30
 
 ### Changed

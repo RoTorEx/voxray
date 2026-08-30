@@ -13,7 +13,7 @@ use crate::storage;
 use crate::transcript::{Metrics, Transcript};
 
 const PROMPT: &str = include_str!("../prompts/call-coach-v2.md");
-const PROMPT_VERSION: &str = "call-coach-v2.1";
+const PROMPT_VERSION: &str = "call-coach-v2.2";
 
 #[derive(Debug, Serialize)]
 pub struct AnalysisResult {
@@ -21,6 +21,13 @@ pub struct AnalysisResult {
     pub feedback: PathBuf,
     pub call_json: Option<PathBuf>,
     pub quick_review: String,
+}
+
+pub struct AnalysisOptions<'a> {
+    pub target_speakers: &'a [String],
+    pub context: Option<&'a str>,
+    pub force: bool,
+    pub interactive: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -105,10 +112,8 @@ pub fn run(
     config: &Config,
     profile_name: &str,
     profile: &Profile,
-    target_speakers: &[String],
     transcript_path: &Path,
-    force: bool,
-    interactive: bool,
+    options: AnalysisOptions<'_>,
 ) -> Result<AnalysisResult> {
     crate::call::validate_file(transcript_path, "Transcript")?;
     let modules = normalize_modules(&profile.modules)?;
@@ -117,7 +122,7 @@ pub fn run(
     }
     let paths = call::CallPaths::from_transcript(transcript_path)?;
     let existing_manifest = call::CallManifest::load(&paths.manifest)?;
-    if paths.feedback.exists() && !force {
+    if paths.feedback.exists() && !options.force {
         let quick_review = existing_manifest
             .as_ref()
             .and_then(|manifest| manifest.analysis.as_ref())
@@ -131,16 +136,12 @@ pub fn run(
         });
     }
     let mut manifest =
-        existing_manifest.unwrap_or_else(|| call::CallManifest::new(&paths, profile_name, profile));
-    manifest.schema_version = 3;
+        existing_manifest.unwrap_or_else(|| call::CallManifest::new(&paths, profile_name));
+    manifest.schema_version = 4;
     manifest.name = paths.name.clone();
     manifest.mode = paths.mode;
     manifest.profile = profile_name.to_string();
-    manifest.call_type = profile.call_type.clone();
-    manifest.subject_name = profile.subject_name.clone();
-    manifest.subject_role = profile.subject_role.clone();
-    manifest.call_goal = profile.call_goal.clone();
-    manifest.source_language = profile.source_language.clone();
+    manifest.context = options.context.map(ToString::to_string);
     manifest.report_language = REPORT_LANGUAGE.to_string();
 
     let mut transcript = match manifest.transcript.clone() {
@@ -148,10 +149,10 @@ pub fn run(
         None => {
             let content = fs::read_to_string(transcript_path)
                 .with_context(|| format!("Failed to read {}", transcript_path.display()))?;
-            Transcript::from_legacy_text(&content, profile, target_speakers, interactive)?
+            Transcript::from_legacy_text(&content, options.target_speakers, options.interactive)?
         }
     };
-    transcript.ensure_target_mapping(profile, target_speakers, interactive)?;
+    transcript.ensure_target_mapping(options.target_speakers, options.interactive)?;
     let metrics = transcript.metrics("target");
     manifest.speaker_mapping = transcript.speaker_mapping.clone();
     manifest.transcript = Some(transcript.clone());
@@ -159,8 +160,8 @@ pub fn run(
     let (document, feedback) = perform_analysis(
         config,
         profile_name,
-        profile,
         &modules,
+        options.context,
         &transcript,
         &metrics,
     )?;
@@ -192,26 +193,12 @@ pub fn run(
 fn perform_analysis(
     config: &Config,
     profile_name: &str,
-    profile: &Profile,
     modules: &[String],
+    context: Option<&str>,
     transcript: &Transcript,
     metrics: &Metrics,
 ) -> Result<(AnalysisDocument, String)> {
-    let input = json!({
-        "call": {
-            "type": profile.call_type,
-            "goal": profile.call_goal,
-            "target_participant": {
-                "participant_id": "target",
-                "name": profile.subject_name,
-                "role": profile.subject_role
-            },
-            "report_language": REPORT_LANGUAGE,
-        },
-        "enabled_modules": modules,
-        "deterministic_metrics": metrics,
-        "transcript": transcript.segments,
-    });
+    let input = analysis_input(context, modules, metrics, &transcript.segments);
     let started_at = chrono::Utc::now();
     let timer = Instant::now();
     logs::event(&format!(
@@ -250,6 +237,26 @@ fn perform_analysis(
         bail!("Rendered feedback is {feedback_words} words; maximum is 500");
     }
     Ok((document, feedback))
+}
+
+fn analysis_input(
+    context: Option<&str>,
+    modules: &[String],
+    metrics: &Metrics,
+    segments: &[crate::transcript::Segment],
+) -> Value {
+    json!({
+        "call": {
+            "context": context,
+            "target_participant": {
+                "participant_id": "target"
+            },
+            "report_language": REPORT_LANGUAGE,
+        },
+        "enabled_modules": modules,
+        "deterministic_metrics": metrics,
+        "transcript": segments,
+    })
 }
 
 fn normalize_modules(modules: &[String]) -> Result<Vec<String>> {
@@ -947,6 +954,36 @@ mod tests {
     fn responses_request_disables_storage() {
         let body = json!({"store": false});
         assert_eq!(body["store"], false);
+    }
+
+    #[test]
+    fn analysis_input_uses_only_per_call_context_and_target_id() {
+        let metrics = Metrics {
+            duration_seconds: 0.0,
+            participants: Default::default(),
+            precision: "test".to_string(),
+        };
+        let input = analysis_input(
+            Some("Prepare for procurement objections"),
+            &["sales".to_string()],
+            &metrics,
+            &[],
+        );
+
+        assert_eq!(
+            input["call"]["context"],
+            "Prepare for procurement objections"
+        );
+        assert_eq!(
+            input["call"]["target_participant"]["participant_id"],
+            "target"
+        );
+        for removed in ["type", "goal"] {
+            assert!(input["call"].get(removed).is_none());
+        }
+        for removed in ["name", "role"] {
+            assert!(input["call"]["target_participant"].get(removed).is_none());
+        }
     }
 
     #[test]

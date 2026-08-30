@@ -83,26 +83,6 @@ pub struct ProfileArgs {
     #[arg(long, value_enum)]
     pub mode: Option<ModeArg>,
 
-    /// Override call context used by feedback
-    #[arg(long)]
-    pub call_type: Option<String>,
-
-    /// Override the evaluated participant name
-    #[arg(long)]
-    pub subject_name: Option<String>,
-
-    /// Override the evaluated participant role
-    #[arg(long)]
-    pub subject_role: Option<String>,
-
-    /// Override transcription source language (normally auto)
-    #[arg(long)]
-    pub source_language: Option<String>,
-
-    /// Override the call goal used by feedback
-    #[arg(long)]
-    pub call_goal: Option<String>,
-
     /// Raw speaker ID for this call; repeat if diarization split one person
     #[arg(long = "target-speaker")]
     pub target_speakers: Vec<String>,
@@ -136,6 +116,10 @@ pub struct InboxArgs {
     /// Continue the pipeline through this stage
     #[arg(long, value_enum)]
     pub through: Option<InboxThroughArg>,
+
+    /// Optional context used only if the pipeline reaches feedback
+    #[arg(long)]
+    pub context: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -154,6 +138,10 @@ pub struct TranscribeArgs {
     /// Continue the pipeline through this stage
     #[arg(long, value_enum)]
     pub through: Option<TranscribeThroughArg>,
+
+    /// Optional context used only if the pipeline reaches feedback
+    #[arg(long)]
+    pub context: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -168,6 +156,10 @@ pub struct FeedbackArgs {
     /// Safely replace an existing feedback.txt
     #[arg(long)]
     pub force: bool,
+
+    /// Optional situation or desired outcome supplied to feedback
+    #[arg(long)]
+    pub context: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -273,6 +265,8 @@ mod tests {
             "english",
             "--target-speaker",
             "Speaker 1",
+            "--context",
+            "Prepare for a promotion conversation",
             "--non-interactive",
             "--json",
         ])
@@ -284,6 +278,10 @@ mod tests {
         };
         assert_eq!(args.profile.modules, ["sales", "english"]);
         assert_eq!(args.profile.target_speakers, ["Speaker 1"]);
+        assert_eq!(
+            args.context.as_deref(),
+            Some("Prepare for a promotion conversation")
+        );
     }
 
     #[test]
@@ -346,5 +344,18 @@ mod tests {
     #[test]
     fn rejects_removed_listen_command() {
         assert!(Cli::try_parse_from(["voxray", "listen"]).is_err());
+    }
+
+    #[test]
+    fn rejects_removed_profile_context_flags() {
+        for flag in [
+            "--call-type",
+            "--subject-name",
+            "--subject-role",
+            "--source-language",
+            "--call-goal",
+        ] {
+            assert!(Cli::try_parse_from(["voxray", "feedback", flag, "value"]).is_err());
+        }
     }
 }

@@ -6,7 +6,7 @@ use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
 use crate::analysis::AnalysisDocument;
-use crate::config::{Mode, Profile, REPORT_LANGUAGE};
+use crate::config::{Mode, REPORT_LANGUAGE};
 use crate::transcript::{Metrics, Transcript};
 
 #[derive(Debug, Clone)]
@@ -119,11 +119,8 @@ pub struct CallManifest {
     pub profile: String,
     #[serde(default)]
     pub mode: Mode,
-    pub call_type: String,
-    pub subject_name: String,
-    pub subject_role: String,
-    pub call_goal: String,
-    pub source_language: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
     pub report_language: String,
     pub created_at: String,
     #[serde(default)]
@@ -152,9 +149,9 @@ pub struct RecordingRecord {
 }
 
 impl CallManifest {
-    pub fn new(paths: &CallPaths, profile_name: &str, profile: &Profile) -> Self {
+    pub fn new(paths: &CallPaths, profile_name: &str) -> Self {
         Self {
-            schema_version: 3,
+            schema_version: 4,
             call_id: format!(
                 "{}-{}",
                 chrono::Utc::now().timestamp_millis(),
@@ -163,11 +160,7 @@ impl CallManifest {
             name: paths.name.clone(),
             profile: profile_name.to_string(),
             mode: paths.mode,
-            call_type: profile.call_type.clone(),
-            subject_name: profile.subject_name.clone(),
-            subject_role: profile.subject_role.clone(),
-            call_goal: profile.call_goal.clone(),
-            source_language: profile.source_language.clone(),
+            context: None,
             report_language: REPORT_LANGUAGE.to_string(),
             created_at: chrono::Utc::now().to_rfc3339(),
             artifacts: BTreeMap::new(),

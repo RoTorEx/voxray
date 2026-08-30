@@ -9,8 +9,8 @@ library, transcripts, and optional coaching feedback.
 - `inbox` stores the recording under a human-readable call name without
   overwriting an existing call.
 - `transcribe` converts audio or video into a readable text transcript only.
-- `feedback` evaluates the configured participant against the selected analysis
-  modules.
+- `feedback` evaluates the operator-selected speaker against the selected
+  analysis modules.
 
 ## Core flows
 
@@ -25,6 +25,10 @@ library, transcripts, and optional coaching feedback.
    choices. Profile editing is an explicit one-run action via `--edit-profile`.
 4. Store the source safely; remove it only after a requested move is verified.
 5. Run only the requested stage unless `--through` extends the pipeline.
+6. Immediately before feedback, allow one optional per-call context value. It
+   may describe the situation or desired outcome, but is never stored in a
+   profile. Interactive operation prompts for it; non-interactive operation
+   accepts `--context`.
 
 ## Invariants
 
@@ -35,8 +39,9 @@ library, transcripts, and optional coaching feedback.
 - Human-readable output stays concise by default. Full resolved parameters are
   diagnostic output enabled by `--show-effective`; JSON output remains
   complete.
-- Profile analysis fields remain available because transcription metadata and
-  feedback need call context, evaluated-participant identity, and call goals.
+- Profiles contain reusable storage settings and analysis modules only.
+  Transcription language is fixed to automatic detection. Per-call context and
+  target-speaker selection belong to the feedback invocation, not the profile.
 - Transcription only publishes text from the recording. It never identifies
   participants, calculates coaching metrics, or creates analysis metadata;
   those concerns begin in `feedback` after the transcript exists.

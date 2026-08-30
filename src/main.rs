@@ -59,6 +59,12 @@ struct TranscriptionInput {
     media: PathBuf,
 }
 
+struct FeedbackStepOptions<'a> {
+    target_speakers: &'a [String],
+    context: Option<String>,
+    force: bool,
+}
+
 #[derive(Clone, Copy)]
 struct Presentation {
     interactive: bool,
@@ -270,6 +276,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
             )
         }
         Commands::Feedback(args) => {
+            let supplied_context = args.context.clone();
             let launch = resolve_launch_selection(
                 &config,
                 Stage::Feedback,
@@ -295,13 +302,17 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 presentation.interactive,
                 "Replace existing feedback?",
             )?;
+            let context = resolve_feedback_context(supplied_context, presentation.interactive)?;
             run_feedback_step(
                 &config,
                 &profile_name,
                 &profile,
-                &target_speakers,
                 transcript,
-                force,
+                FeedbackStepOptions {
+                    target_speakers: &target_speakers,
+                    context,
+                    force,
+                },
                 presentation,
             )
         }
@@ -325,6 +336,7 @@ fn run_from_inbox(
     plan: Plan,
     presentation: Presentation,
 ) -> Result<CommandOutcome> {
+    let supplied_context = args.context.clone();
     let source = resolve_recording(args.recording, &profile.inbox_dir, presentation.interactive)?;
     let default_name = source
         .file_stem()
@@ -369,13 +381,17 @@ fn run_from_inbox(
     }
     if plan.includes(Stage::Feedback) {
         let transcript = transcript.context("feedback requires a transcript")?;
+        let context = resolve_feedback_context(supplied_context, presentation.interactive)?;
         outcomes.push(run_feedback_step(
             config,
             profile_name,
             profile,
-            target_speakers,
             transcript,
-            false,
+            FeedbackStepOptions {
+                target_speakers,
+                context,
+                force: false,
+            },
             presentation,
         )?);
     }
@@ -391,6 +407,7 @@ fn run_from_transcribe(
     plan: Plan,
     presentation: Presentation,
 ) -> Result<CommandOutcome> {
+    let supplied_context = args.context.clone();
     let recording =
         resolve_recording(args.recording, &profile.calls_dir, presentation.interactive)?;
     let input = TranscriptionInput {
@@ -406,13 +423,17 @@ fn run_from_transcribe(
         run_transcribe_step(config, profile_name, profile, input, force, presentation)?;
     let mut outcomes = vec![transcribe_outcome];
     if plan.includes(Stage::Feedback) {
+        let context = resolve_feedback_context(supplied_context, presentation.interactive)?;
         outcomes.push(run_feedback_step(
             config,
             profile_name,
             profile,
-            target_speakers,
             transcript,
-            false,
+            FeedbackStepOptions {
+                target_speakers,
+                context,
+                force: false,
+            },
             presentation,
         )?);
     }
@@ -475,6 +496,7 @@ fn run_transcribe_step(
             "transcription_input": input.media,
             "force": force,
             "model": config.transcription.model,
+            "language": config::TRANSCRIPTION_LANGUAGE,
             "transcript": paths.transcript,
         }),
     );
@@ -482,7 +504,6 @@ fn run_transcribe_step(
     let result = transcribe::run(
         &input.recording,
         &input.media,
-        profile,
         transcribe::TranscribeOptions {
             model: &config.transcription.model,
             force,
@@ -503,9 +524,8 @@ fn run_feedback_step(
     config: &Config,
     profile_name: &str,
     profile: &Profile,
-    target_speakers: &[String],
     transcript: PathBuf,
-    force: bool,
+    options: FeedbackStepOptions<'_>,
     presentation: Presentation,
 ) -> Result<CommandOutcome> {
     let paths = call::CallPaths::from_transcript(&transcript)?;
@@ -514,7 +534,8 @@ fn run_feedback_step(
         profile,
         json!({
             "transcript": transcript,
-            "force": force,
+            "context": options.context,
+            "force": options.force,
             "model": config.analysis.model,
             "store": false,
             "feedback": paths.feedback,
@@ -526,10 +547,13 @@ fn run_feedback_step(
         config,
         profile_name,
         profile,
-        target_speakers,
         &transcript,
-        force,
-        presentation.interactive,
+        analysis::AnalysisOptions {
+            target_speakers: options.target_speakers,
+            context: options.context.as_deref(),
+            force: options.force,
+            interactive: presentation.interactive,
+        },
     )?;
     let mut artifacts = BTreeMap::from([(
         "feedback".to_string(),
@@ -626,21 +650,6 @@ fn effective_profile(
     if let Some(value) = args.mode {
         profile.mode = Some(value.into());
     }
-    if let Some(value) = args.call_type {
-        profile.call_type = value;
-    }
-    if let Some(value) = args.subject_name {
-        profile.subject_name = value;
-    }
-    if let Some(value) = args.subject_role {
-        profile.subject_role = value;
-    }
-    if let Some(value) = args.source_language {
-        profile.source_language = value;
-    }
-    if let Some(value) = args.call_goal {
-        profile.call_goal = value;
-    }
     if !args.modules.is_empty() {
         profile.modules = args.modules;
     }
@@ -678,11 +687,6 @@ fn prompt_profile(mut profile: Profile) -> Result<Profile> {
         "folder" => Mode::Folder,
         _ => bail!("mode must be file or folder"),
     });
-    profile.call_type = prompt_text("call_type", &profile.call_type)?;
-    profile.subject_name = prompt_text("subject_name", &profile.subject_name)?;
-    profile.subject_role = prompt_text("subject_role", &profile.subject_role)?;
-    profile.source_language = prompt_text("source_language", &profile.source_language)?;
-    profile.call_goal = prompt_text("call_goal", &profile.call_goal)?;
     profile.modules = split_list(&prompt_text(
         "modules (comma-separated)",
         &profile.modules.join(", "),
@@ -736,13 +740,22 @@ fn validate_profile(profile: &Profile) -> Result<()> {
     if profile.inbox_dir.as_os_str().is_empty() {
         bail!("inbox_dir is required");
     }
-    if profile.subject_name.trim().is_empty() {
-        bail!("subject_name is required");
-    }
-    if profile.source_language.trim().is_empty() {
-        bail!("source_language is required");
-    }
     Ok(())
+}
+
+fn resolve_feedback_context(value: Option<String>, interactive: bool) -> Result<Option<String>> {
+    if !interactive {
+        return Ok(normalize_optional_text(value.as_deref()));
+    }
+    let value = prompt_text("Context (optional)", value.as_deref().unwrap_or(""))?;
+    Ok(normalize_optional_text(Some(&value)))
+}
+
+fn normalize_optional_text(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
 }
 
 fn resolve_launch_selection(
@@ -883,12 +896,7 @@ fn effective_json(profile_name: &str, profile: &Profile, command: Value) -> Valu
             "calls_dir": profile.calls_dir,
             "date_format": profile.date_format,
             "mode": profile.mode,
-            "call_type": profile.call_type,
-            "subject_name": profile.subject_name,
-            "subject_role": profile.subject_role,
-            "source_language": profile.source_language,
             "report_language": config::REPORT_LANGUAGE,
-            "call_goal": profile.call_goal,
             "modules": profile.modules,
         },
         "command": command,
@@ -924,7 +932,7 @@ fn print_human_outcome(outcome: &CommandOutcome) {
 
 #[cfg(test)]
 mod main_tests {
-    use super::normalize_call_name_input;
+    use super::{normalize_call_name_input, normalize_optional_text};
 
     #[test]
     fn interactive_call_name_requires_explicit_non_empty_input() {
@@ -933,6 +941,16 @@ mod main_tests {
         assert_eq!(
             normalize_call_name_input("  Sync with Nastya  "),
             Some("Sync with Nastya".to_string())
+        );
+    }
+
+    #[test]
+    fn feedback_context_is_trimmed_and_optional() {
+        assert_eq!(normalize_optional_text(None), None);
+        assert_eq!(normalize_optional_text(Some("   ")), None);
+        assert_eq!(
+            normalize_optional_text(Some("  Prepare for objections  ")),
+            Some("Prepare for objections".to_string())
         );
     }
 }

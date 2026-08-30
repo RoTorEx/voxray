@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::config::Profile;
+use crate::config::TRANSCRIPTION_LANGUAGE;
+
+const TARGET_PARTICIPANT_NAME: &str = "You";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transcript {
@@ -175,11 +177,10 @@ impl Transcript {
 
     pub fn from_legacy_text(
         content: &str,
-        profile: &Profile,
         target_speakers: &[String],
         interactive: bool,
     ) -> Result<Self> {
-        let mut segments = parse_readable_text(content, profile);
+        let mut segments = parse_readable_text(content);
         if segments.is_empty() {
             segments = parse_old_text(content);
         }
@@ -192,7 +193,7 @@ impl Transcript {
                 engine: "legacy-text-import".to_string(),
                 exact_model: "unknown".to_string(),
                 engine_version: None,
-                language: profile.source_language.clone(),
+                language: TRANSCRIPTION_LANGUAGE.to_string(),
                 timestamps: true,
                 diarization: true,
                 transcription_duration_ms: 0,
@@ -204,13 +205,12 @@ impl Transcript {
             speaker_mapping: BTreeMap::new(),
             segments,
         };
-        transcript.assign_speakers(profile, target_speakers, interactive, true)?;
+        transcript.assign_speakers(target_speakers, interactive, true)?;
         Ok(transcript)
     }
 
     pub fn ensure_target_mapping(
         &mut self,
-        profile: &Profile,
         target_speakers: &[String],
         interactive: bool,
     ) -> Result<()> {
@@ -221,7 +221,7 @@ impl Transcript {
         if already_mapped && target_speakers.is_empty() {
             return Ok(());
         }
-        self.assign_speakers(profile, target_speakers, interactive, true)
+        self.assign_speakers(target_speakers, interactive, true)
     }
 
     pub fn render_text(&self) -> String {
@@ -320,7 +320,6 @@ impl Transcript {
 
     fn assign_speakers(
         &mut self,
-        profile: &Profile,
         target_speakers: &[String],
         interactive: bool,
         target_required: bool,
@@ -332,11 +331,6 @@ impl Transcript {
             .collect();
         let target_speakers = if !target_speakers.is_empty() {
             target_speakers.to_vec()
-        } else if let Some(named) = speakers
-            .iter()
-            .find(|speaker| speaker.eq_ignore_ascii_case(&profile.subject_name))
-        {
-            vec![named.clone()]
         } else if speakers.len() == 1 {
             speakers.iter().cloned().collect()
         } else if interactive {
@@ -347,13 +341,10 @@ impl Transcript {
             } else {
                 "Optional for transcription; press Enter to keep generic speaker labels"
             };
-            let selected = inquire::MultiSelect::new(
-                &format!("Which speaker IDs belong to {}?", profile.subject_name),
-                options,
-            )
-            .with_help_message(help_message)
-            .prompt()
-            .map_err(|error| anyhow::anyhow!("Failed to select target speakers: {error}"))?;
+            let selected = inquire::MultiSelect::new("Which speaker IDs are yours?", options)
+                .with_help_message(help_message)
+                .prompt()
+                .map_err(|error| anyhow::anyhow!("Failed to select target speakers: {error}"))?;
             if selected.is_empty() && target_required {
                 bail!("At least one target speaker must be selected");
             }
@@ -382,7 +373,7 @@ impl Transcript {
                 .cloned()
                 .unwrap_or_else(|| "participant-unknown".to_string());
             segment.participant_name = if segment.participant_id == "target" {
-                profile.subject_name.clone()
+                TARGET_PARTICIPANT_NAME.to_string()
             } else {
                 segment.raw_speaker_id.clone()
             };
@@ -428,7 +419,7 @@ fn speaker_samples(segments: &[Segment], speakers: &BTreeSet<String>) -> Vec<Spe
         .collect()
 }
 
-fn parse_readable_text(content: &str, profile: &Profile) -> Vec<Segment> {
+fn parse_readable_text(content: &str) -> Vec<Segment> {
     let blocks: Vec<&str> = content.split("\n\n").collect();
     let mut segments = Vec::new();
     for block in blocks {
@@ -450,10 +441,9 @@ fn parse_readable_text(content: &str, profile: &Profile) -> Vec<Segment> {
         if speaker.is_empty() || text.is_empty() {
             continue;
         }
-        let target = speaker.eq_ignore_ascii_case(&profile.subject_name);
         segments.push(Segment {
             raw_speaker_id: speaker.to_string(),
-            participant_id: if target { "target" } else { "" }.to_string(),
+            participant_id: String::new(),
             participant_name: speaker.to_string(),
             start_seconds,
             end_seconds: None,
@@ -639,35 +629,18 @@ fn average(value: f64, count: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    fn profile() -> Profile {
-        Profile {
-            inbox_dir: PathBuf::from("/tmp"),
-            calls_dir: PathBuf::from("/tmp"),
-            date_format: None,
-            mode: None,
-            modules: vec!["sales".to_string()],
-            call_type: "sales".to_string(),
-            subject_name: "Alex".to_string(),
-            subject_role: "seller".to_string(),
-            source_language: "en".to_string(),
-            call_goal: String::new(),
-        }
-    }
 
     #[test]
     fn imports_legacy_transcript_and_computes_metrics() {
         let input = "Speaker 1\n00:01\nUh hello?\n\nSpeaker 2\n00:03\nHello.\n\nSpeaker 1\n00:05\nSo let us begin.\n";
         let transcript =
-            Transcript::from_legacy_text(input, &profile(), &["Speaker 1".to_string()], false)
-                .unwrap();
+            Transcript::from_legacy_text(input, &["Speaker 1".to_string()], false).unwrap();
         let metrics = transcript.metrics("target");
         assert_eq!(transcript.segments.len(), 3);
         assert_eq!(metrics.participants["target"].questions, 1);
         assert_eq!(metrics.participants["target"].fillers, 2);
         assert_eq!(metrics.participants["target"].longest_turn_words, 4);
-        assert!(transcript.render_text().starts_with("[00:00:01] Alex"));
+        assert!(transcript.render_text().starts_with("[00:00:01] You"));
     }
 
     #[test]
@@ -707,9 +680,9 @@ mod tests {
         assert_eq!(transcript.segments[0].participant_name, "Speaker 1");
 
         transcript
-            .ensure_target_mapping(&profile(), &["Speaker 2".to_string()], false)
+            .ensure_target_mapping(&["Speaker 2".to_string()], false)
             .unwrap();
         assert_eq!(transcript.segments[1].participant_id, "target");
-        assert_eq!(transcript.segments[1].participant_name, "Alex");
+        assert_eq!(transcript.segments[1].participant_name, "You");
     }
 }

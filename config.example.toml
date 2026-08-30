@@ -3,11 +3,6 @@ inbox_dir = "/Users/you/Calls Inbox"
 calls_dir = "/Users/you/Calls"
 date_format = "%Y-%m-%d %H-%M"
 mode = "folder"
-call_type = "general"
-subject_name = "Your Name"
-subject_role = "participant"
-source_language = "auto"
-call_goal = ""
 modules = ["communication"]
 
 [profiles.dummy]
@@ -15,11 +10,6 @@ inbox_dir = "/path/to/inbox"
 calls_dir = "/path/to/calls"
 date_format = "%Y-%m-%d %H-%M"
 mode = "folder"
-call_type = "general"
-subject_name = "Your Name"
-subject_role = "participant"
-source_language = "auto"
-call_goal = "Describe the desired outcome"
 modules = []
 
 [transcription]

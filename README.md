@@ -135,18 +135,15 @@ fields for named profiles:
 | `date_format` | `strftime` prefix for call names; `""` disables the prefix | `--date-format` |
 | `mode` | Storage layout: `"folder"` or `"file"` | `--mode` |
 | `modules` | Analysis modules: `sales`, `interview`, `english`, `communication`; `[]` disables analysis | `--module` (repeatable) |
-| `call_type` | Free-form call context supplied to analysis | `--call-type` |
-| `subject_name` | Name of the participant being evaluated | `--subject-name` |
-| `subject_role` | Role of the participant being evaluated | `--subject-role` |
-| `source_language` | Transcription language, normally `"auto"` | `--source-language` |
-| `call_goal` | Desired call outcome supplied to analysis | `--call-goal` |
 
 `inbox_dir` and `calls_dir` are required in every profile. Other built-in
 defaults are: `date_format = "%Y-%m-%d %H-%M"`, `mode = "folder"`,
-`modules = []`, `call_type = "general"`, `subject_name = "Alex"`,
-`subject_role = "participant"`, `source_language = "auto"`, and `call_goal = ""`.
+`modules = []`.
 A named profile is independent; it does not inherit
 missing required paths from `[default]`.
+
+Transcription always uses automatic language detection. Feedback accepts an
+optional per-call `--context`; it is never stored in a profile.
 
 `[transcription]` options:
 
@@ -174,13 +171,9 @@ Common overrides include:
 --calls-dir
 --date-format
 --mode file|folder
---call-type
---subject-name
---subject-role
---source-language
---call-goal
 --target-speaker (repeatable, per call)
 --module (repeatable)
+--context (per feedback run)
 ```
 
 ## Inbox
@@ -245,13 +238,16 @@ Non-interactive:
 voxray feedback --profile sales \
   --transcript "/path/Atlas IQ — Tomas.transcript.txt" \
   --target-speaker "Speaker 1" \
+  --context "Prepare for a procurement objection and agree on the next step" \
   --non-interactive
 ```
 
 Feedback accepts only a plain transcript. If `call.json` is adjacent, Voxray
 uses its structured segments and deterministic metrics. Otherwise it parses the
-TXT and marks unavailable metrics as `N/A`. One request handles every active
-module with `store=false`; output is English plain text, not Markdown.
+TXT and marks unavailable metrics as `N/A`. Interactive feedback asks for
+optional context immediately before analysis; pressing Enter leaves it empty.
+One request handles every active module with `store=false`; output is English
+plain text, not Markdown.
 
 ## Pipeline
 
@@ -264,13 +260,14 @@ voxray inbox --through transcribe
 Run the complete pipeline from recording storage through feedback:
 
 ```bash
-voxray inbox --through feedback
+voxray inbox --through feedback --context "Focus on the renewal decision"
 ```
 
 Continue from an existing recording through feedback:
 
 ```bash
-voxray transcribe --recording "/path/call.record.m4a" --through feedback
+voxray transcribe --recording "/path/call.record.m4a" --through feedback \
+  --context "Focus on the renewal decision"
 ```
 
 Each completed stage passes its exact output path to the next stage. Pipelines

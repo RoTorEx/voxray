@@ -14,9 +14,12 @@ library, transcripts, and optional coaching feedback.
 
 ## Core flows
 
-1. Every interactive working command starts by asking the operator to select a
-   profile. A supplied `--profile` only preselects that menu item; it never
-   suppresses the menu. Non-interactive operation never prompts.
+1. Every interactive working command starts with one compact launch screen.
+   `default` is the preselected profile, so the operator may continue without
+   making a profile choice. Commands that can continue to a later stage also
+   show `through`, preselected to `none`. Supplied `--profile` and `--through`
+   values preselect their menu items; they never suppress the screen.
+   Non-interactive operation never prompts.
 2. Resolve explicit CLI overrides over the selected profile.
 3. After profile selection, interactive mode asks only for command-specific
    choices. Profile editing is an explicit one-run action via `--edit-profile`.

@@ -10,8 +10,9 @@ Tracks real product progress.
   `~/construction_side/voxray/target`.
 - Fixed video inbox processing with newer ffmpeg versions by explicitly
   selecting the M4A output container for derived audio temporary files.
-- Made every interactive working command show profile selection first;
-  `--profile` now preselects an item instead of bypassing the menu.
+- Added a compact single-pane launch screen to every interactive working
+  command, with `default` profile and `none` pipeline continuation preselected;
+  `--profile` and `--through` now preselect values instead of bypassing it.
 
 ## [0.3.4] - 2026-08-24
 

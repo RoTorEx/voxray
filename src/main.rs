@@ -16,6 +16,7 @@ mod call;
 mod cli;
 mod config;
 mod inbox;
+mod launcher;
 mod logs;
 mod media;
 mod setup;
@@ -215,11 +216,19 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
     let edit_profile = cli.edit_profile;
     match cli.command {
         Commands::Inbox(args) => {
-            let plan = Plan::new(Stage::Inbox, args.through.map(Into::into))?;
+            let launch = resolve_launch_selection(
+                &config,
+                Stage::Inbox,
+                args.profile.profile.as_deref(),
+                args.through.map(Into::into),
+                presentation.interactive,
+            )?;
+            let plan = Plan::new(Stage::Inbox, launch.through)?;
             let target_speakers = args.profile.target_speakers.clone();
             let (profile_name, profile) = effective_profile(
                 &config,
                 args.profile.clone(),
+                launch.profile,
                 presentation.interactive,
                 edit_profile,
             )?;
@@ -234,11 +243,19 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
             )
         }
         Commands::Transcribe(args) => {
-            let plan = Plan::new(Stage::Transcribe, args.through.map(Into::into))?;
+            let launch = resolve_launch_selection(
+                &config,
+                Stage::Transcribe,
+                args.profile.profile.as_deref(),
+                args.through.map(Into::into),
+                presentation.interactive,
+            )?;
+            let plan = Plan::new(Stage::Transcribe, launch.through)?;
             let target_speakers = args.profile.target_speakers.clone();
             let (profile_name, profile) = effective_profile(
                 &config,
                 args.profile.clone(),
+                launch.profile,
                 presentation.interactive,
                 edit_profile,
             )?;
@@ -253,10 +270,18 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
             )
         }
         Commands::Feedback(args) => {
+            let launch = resolve_launch_selection(
+                &config,
+                Stage::Feedback,
+                args.profile.profile.as_deref(),
+                None,
+                presentation.interactive,
+            )?;
             let target_speakers = args.profile.target_speakers.clone();
             let (profile_name, profile) = effective_profile(
                 &config,
                 args.profile,
+                launch.profile,
                 presentation.interactive,
                 edit_profile,
             )?;
@@ -583,14 +608,10 @@ fn finish_workflow(start: Stage, plan: &Plan, outcomes: Vec<CommandOutcome>) -> 
 fn effective_profile(
     config: &Config,
     args: ProfileArgs,
+    profile_name: String,
     interactive: bool,
     edit_profile: bool,
 ) -> Result<(String, Profile)> {
-    let profile_name = match (interactive, args.profile.as_deref()) {
-        (true, preferred) => pick_profile(config, preferred)?,
-        (false, Some(name)) => name.to_string(),
-        (false, None) => "default".to_string(),
-    };
     let base = config.profile((profile_name != "default").then_some(profile_name.as_str()))?;
     let mut profile = base.clone();
     if let Some(value) = args.inbox_dir {
@@ -724,23 +745,26 @@ fn validate_profile(profile: &Profile) -> Result<()> {
     Ok(())
 }
 
-fn pick_profile(config: &Config, preferred: Option<&str>) -> Result<String> {
-    let labels = config.profile_labels();
-    let starting_cursor = preferred_profile_cursor(&labels, preferred)?;
-    Select::new("Profile:", labels)
-        .with_starting_cursor(starting_cursor)
-        .prompt()
-        .map_err(|error| anyhow::anyhow!("Failed to select profile: {error}"))
-}
-
-fn preferred_profile_cursor(labels: &[String], preferred: Option<&str>) -> Result<usize> {
-    match preferred {
-        Some(name) => labels
-            .iter()
-            .position(|label| label == name)
-            .with_context(|| format!("Profile '{name}' not found")),
-        None => Ok(0),
+fn resolve_launch_selection(
+    config: &Config,
+    command: Stage,
+    preferred_profile: Option<&str>,
+    preferred_through: Option<Stage>,
+    interactive: bool,
+) -> Result<launcher::LaunchSelection> {
+    if interactive {
+        return launcher::run(
+            command,
+            config.profile_labels(),
+            preferred_profile,
+            preferred_through,
+        );
     }
+
+    Ok(launcher::LaunchSelection {
+        profile: preferred_profile.unwrap_or("default").to_string(),
+        through: preferred_through,
+    })
 }
 
 fn resolve_recording(
@@ -900,7 +924,7 @@ fn print_human_outcome(outcome: &CommandOutcome) {
 
 #[cfg(test)]
 mod main_tests {
-    use super::{normalize_call_name_input, preferred_profile_cursor};
+    use super::normalize_call_name_input;
 
     #[test]
     fn interactive_call_name_requires_explicit_non_empty_input() {
@@ -910,21 +934,5 @@ mod main_tests {
             normalize_call_name_input("  Sync with Nastya  "),
             Some("Sync with Nastya".to_string())
         );
-    }
-
-    #[test]
-    fn interactive_profile_flag_only_prefers_a_menu_item() {
-        let labels = vec![
-            "default".to_string(),
-            "product".to_string(),
-            "sales".to_string(),
-        ];
-
-        assert_eq!(preferred_profile_cursor(&labels, None).unwrap(), 0);
-        assert_eq!(
-            preferred_profile_cursor(&labels, Some("product")).unwrap(),
-            1
-        );
-        assert!(preferred_profile_cursor(&labels, Some("missing")).is_err());
     }
 }

@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-30
+
 ### Changed
 
 - Removed profile-level call type, participant identity and role, transcription

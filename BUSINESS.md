@@ -14,11 +14,14 @@ library, transcripts, and optional coaching feedback.
 
 ## Core flows
 
-1. Resolve explicit CLI overrides over the selected profile.
-2. In interactive mode, ask only for command-specific choices. Profile editing
-   is an explicit one-run action via `--edit-profile`.
-3. Store the source safely; remove it only after a requested move is verified.
-4. Run only the requested stage unless `--through` extends the pipeline.
+1. Every interactive working command starts by asking the operator to select a
+   profile. A supplied `--profile` only preselects that menu item; it never
+   suppresses the menu. Non-interactive operation never prompts.
+2. Resolve explicit CLI overrides over the selected profile.
+3. After profile selection, interactive mode asks only for command-specific
+   choices. Profile editing is an explicit one-run action via `--edit-profile`.
+4. Store the source safely; remove it only after a requested move is verified.
+5. Run only the requested stage unless `--through` extends the pipeline.
 
 ## Invariants
 

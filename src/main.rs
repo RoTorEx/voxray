@@ -586,10 +586,10 @@ fn effective_profile(
     interactive: bool,
     edit_profile: bool,
 ) -> Result<(String, Profile)> {
-    let profile_name = match args.profile {
-        Some(name) => name,
-        None if interactive => pick_profile(config)?,
-        None => "default".to_string(),
+    let profile_name = match (interactive, args.profile.as_deref()) {
+        (true, preferred) => pick_profile(config, preferred)?,
+        (false, Some(name)) => name.to_string(),
+        (false, None) => "default".to_string(),
     };
     let base = config.profile((profile_name != "default").then_some(profile_name.as_str()))?;
     let mut profile = base.clone();
@@ -724,11 +724,23 @@ fn validate_profile(profile: &Profile) -> Result<()> {
     Ok(())
 }
 
-fn pick_profile(config: &Config) -> Result<String> {
+fn pick_profile(config: &Config, preferred: Option<&str>) -> Result<String> {
     let labels = config.profile_labels();
+    let starting_cursor = preferred_profile_cursor(&labels, preferred)?;
     Select::new("Profile:", labels)
+        .with_starting_cursor(starting_cursor)
         .prompt()
         .map_err(|error| anyhow::anyhow!("Failed to select profile: {error}"))
+}
+
+fn preferred_profile_cursor(labels: &[String], preferred: Option<&str>) -> Result<usize> {
+    match preferred {
+        Some(name) => labels
+            .iter()
+            .position(|label| label == name)
+            .with_context(|| format!("Profile '{name}' not found")),
+        None => Ok(0),
+    }
 }
 
 fn resolve_recording(
@@ -888,7 +900,7 @@ fn print_human_outcome(outcome: &CommandOutcome) {
 
 #[cfg(test)]
 mod main_tests {
-    use super::normalize_call_name_input;
+    use super::{normalize_call_name_input, preferred_profile_cursor};
 
     #[test]
     fn interactive_call_name_requires_explicit_non_empty_input() {
@@ -898,5 +910,21 @@ mod main_tests {
             normalize_call_name_input("  Sync with Nastya  "),
             Some("Sync with Nastya".to_string())
         );
+    }
+
+    #[test]
+    fn interactive_profile_flag_only_prefers_a_menu_item() {
+        let labels = vec![
+            "default".to_string(),
+            "product".to_string(),
+            "sales".to_string(),
+        ];
+
+        assert_eq!(preferred_profile_cursor(&labels, None).unwrap(), 0);
+        assert_eq!(
+            preferred_profile_cursor(&labels, Some("product")).unwrap(),
+            1
+        );
+        assert!(preferred_profile_cursor(&labels, Some("missing")).is_err());
     }
 }

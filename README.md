@@ -104,8 +104,11 @@ CLI override in interactive and non-interactive operation. Resolution order is:
 CLI flag -> selected profile -> [default] -> built-in safe default
 ```
 
-Interactive operation uses the selected profile without walking through all of
-its values. Add `--edit-profile` to edit those values for one run. Interactive
+Every interactive working command starts with the profile menu, even when
+`--profile` is supplied; that flag only preselects its menu item. The selected
+profile is then used without walking through all of its values. Add
+`--edit-profile` to edit those values for one run. `--non-interactive` never
+prompts and is the mode for scripts and LLM-driven operation. Interactive
 `inbox` always asks for a non-empty call name when `--name` was not supplied;
 there is no basename default to accept accidentally.
 
@@ -185,7 +188,7 @@ Interactive:
 voxray inbox
 ```
 
-Choose a profile and override its values for one run when needed:
+Preselect a profile in the menu and override its values for one run when needed:
 
 ```bash
 voxray inbox --profile sales --edit-profile --show-effective

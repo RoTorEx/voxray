@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Instant;
@@ -11,17 +12,7 @@ use crate::{logs, storage, transcript};
 
 pub fn extract_audio(video_path: &Path, output_audio: &Path) -> Result<()> {
     let status = Command::new("ffmpeg")
-        .arg("-y")
-        .arg("-i")
-        .arg(video_path)
-        .arg("-vn")
-        .arg("-map")
-        .arg("0:a")
-        .arg("-c:a")
-        .arg("aac")
-        .arg("-b:a")
-        .arg("128k")
-        .arg(output_audio)
+        .args(audio_extraction_args(video_path, output_audio))
         .stdout(Stdio::null())
         .status()
         .with_context(|| "Failed to run ffmpeg; install it and ensure it is on PATH")?;
@@ -29,6 +20,25 @@ pub fn extract_audio(video_path: &Path, output_audio: &Path) -> Result<()> {
         bail!("ffmpeg audio extraction failed with status {status}");
     }
     Ok(())
+}
+
+fn audio_extraction_args(video_path: &Path, output_audio: &Path) -> Vec<OsString> {
+    [
+        OsString::from("-y"),
+        OsString::from("-i"),
+        video_path.as_os_str().to_owned(),
+        OsString::from("-vn"),
+        OsString::from("-map"),
+        OsString::from("0:a"),
+        OsString::from("-c:a"),
+        OsString::from("aac"),
+        OsString::from("-b:a"),
+        OsString::from("128k"),
+        OsString::from("-f"),
+        OsString::from("ipod"),
+        output_audio.as_os_str().to_owned(),
+    ]
+    .into()
 }
 
 #[derive(Debug, Serialize)]
@@ -117,4 +127,40 @@ pub fn run(
         result: "created".to_string(),
         transcript: paths.transcript,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tells_ffmpeg_to_write_m4a_when_temporary_path_ends_in_tmp() {
+        let args = audio_extraction_args(
+            Path::new("call.mov"),
+            Path::new(".voxray-audio.m4a-123.tmp"),
+        );
+        let args: Vec<_> = args
+            .iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
+
+        assert_eq!(
+            args,
+            [
+                "-y",
+                "-i",
+                "call.mov",
+                "-vn",
+                "-map",
+                "0:a",
+                "-c:a",
+                "aac",
+                "-b:a",
+                "128k",
+                "-f",
+                "ipod",
+                ".voxray-audio.m4a-123.tmp",
+            ]
+        );
+    }
 }

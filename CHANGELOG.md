@@ -8,6 +8,8 @@ Tracks real product progress.
 
 - Routed direct Cargo and IDE build output to
   `~/construction_side/voxray/target`.
+- Fixed video inbox processing with newer ffmpeg versions by explicitly
+  selecting the M4A output container for derived audio temporary files.
 
 ## [0.3.4] - 2026-08-24
 

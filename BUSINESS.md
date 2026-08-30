@@ -46,6 +46,9 @@ library, transcripts, and optional coaching feedback.
   participants, calculates coaching metrics, or creates analysis metadata;
   those concerns begin in `feedback` after the transcript exists.
 - API tokens and transcript contents are never written to operational logs.
+- Configuration is parsed and validated in full before any interactive screen
+  or working command starts. Unknown keys and invalid values are fatal and the
+  error identifies the file, field, and reason in operator-readable language.
 
 ## Code map
 

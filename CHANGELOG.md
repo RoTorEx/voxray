@@ -10,6 +10,8 @@ Tracks real product progress.
   language, and call goal. Transcription now always uses automatic language
   detection, while feedback accepts optional per-call context interactively or
   through `--context`.
+- Made startup reject unknown configuration keys and invalid values before
+  opening the TUI, with errors that identify the exact field and reason.
 
 ## [0.4.0] - 2026-08-30
 

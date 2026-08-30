@@ -1,4 +1,5 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
+use chrono::format::{Item, StrftimeItems};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -10,6 +11,7 @@ pub const REPORT_LANGUAGE: &str = "en";
 pub const TRANSCRIPTION_LANGUAGE: &str = "auto";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(default = "default_profile")]
     pub default: Profile,
@@ -22,6 +24,7 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AnalysisConfig {
     /// Model type+version passed to the Responses API
     #[serde(default = "default_feedback_model")]
@@ -45,6 +48,7 @@ impl Default for AnalysisConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TranscriptionConfig {
     #[serde(default = "default_transcription_model")]
     pub model: String,
@@ -71,6 +75,7 @@ fn default_feedback_api_url() -> String {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Profile {
     pub inbox_dir: PathBuf,
     pub calls_dir: PathBuf,
@@ -131,8 +136,8 @@ impl Config {
                     .with_context(|| format!("Failed to read config from {}", path.display()));
             }
         };
-        toml::from_str(&content)
-            .with_context(|| format!("Failed to parse config from {}", path.display()))
+        parse_and_validate(&content)
+            .with_context(|| format!("Invalid configuration at {}", path.display()))
     }
 
     pub fn starter() -> Self {
@@ -203,6 +208,74 @@ impl Config {
                 .values()
                 .any(|profile| !profile.modules.is_empty())
     }
+
+    fn validate(&self) -> Result<()> {
+        validate_profile("default", &self.default)?;
+        for (name, profile) in &self.profiles {
+            if name.trim().is_empty() {
+                bail!("profile name must not be empty");
+            }
+            validate_profile(&format!("profiles.{name}"), profile)?;
+        }
+        if self.transcription.model.trim().is_empty() || !self.transcription.model.contains(':') {
+            bail!(
+                "transcription.model must use engine:model-id format, got {:?}",
+                self.transcription.model
+            );
+        }
+        if self.analysis.model.trim().is_empty() {
+            bail!("analysis.model must not be empty");
+        }
+        if self
+            .analysis
+            .reasoning_effort
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty())
+        {
+            bail!("analysis.reasoning_effort must be omitted or non-empty");
+        }
+        if !self.analysis.api_url.starts_with("https://")
+            && !self.analysis.api_url.starts_with("http://")
+        {
+            bail!(
+                "analysis.api_url must start with https:// or http://, got {:?}",
+                self.analysis.api_url
+            );
+        }
+        Ok(())
+    }
+}
+
+fn parse_and_validate(content: &str) -> Result<Config> {
+    let config: Config = toml::from_str(content)
+        .map_err(|error| anyhow::anyhow!("TOML syntax or field error:\n{error}"))?;
+    config.validate()?;
+    Ok(config)
+}
+
+fn validate_profile(name: &str, profile: &Profile) -> Result<()> {
+    if profile.inbox_dir.as_os_str().is_empty() {
+        bail!("{name}.inbox_dir must not be empty");
+    }
+    if profile.calls_dir.as_os_str().is_empty() {
+        bail!("{name}.calls_dir must not be empty");
+    }
+    if let Some(format) = &profile.date_format
+        && StrftimeItems::new(format).any(|item| item == Item::Error)
+    {
+        bail!("{name}.date_format is not valid strftime syntax: {format:?}");
+    }
+    for module in &profile.modules {
+        if !matches!(
+            module.as_str(),
+            "sales" | "interview" | "english" | "communication" | "common"
+        ) {
+            bail!(
+                "{name}.modules contains unknown module {module:?}; expected sales, interview, english, or communication"
+            );
+        }
+    }
+    Ok(())
 }
 
 pub fn app_home() -> Result<PathBuf> {
@@ -254,7 +327,7 @@ feedback = ["english", "common"]
 model = "gpt-5.6-terra"
 reasoning_effort = "medium"
 "#;
-        let config: Config = toml::from_str(input).unwrap();
+        let config = parse_and_validate(input).unwrap();
         assert_eq!(config.default.modules, vec!["english", "common"]);
         assert_eq!(config.analysis.model, "gpt-5.6-terra");
     }
@@ -287,5 +360,48 @@ reasoning_effort = "medium"
         assert!(!serialized.contains("call_goal"));
         assert!(!serialized.contains("timestamps"));
         assert!(!serialized.contains("speakers"));
+    }
+
+    #[test]
+    fn rejects_unknown_fields_with_their_location() {
+        let input = r#"
+[default]
+inbox_dir = "/tmp"
+calls_dir = "/tmp"
+call_goal = "legacy junk"
+"#;
+        let error = parse_and_validate(input).unwrap_err().to_string();
+
+        assert!(error.contains("unknown field `call_goal`"));
+        assert!(error.contains("line 5"));
+    }
+
+    #[test]
+    fn rejects_invalid_values_before_commands_start() {
+        let input = r#"
+[default]
+inbox_dir = "/tmp"
+calls_dir = "/tmp"
+modules = ["astrology"]
+"#;
+        let error = parse_and_validate(input).unwrap_err().to_string();
+
+        assert!(error.contains("default.modules"));
+        assert!(error.contains("astrology"));
+        assert!(error.contains("expected sales, interview, english, or communication"));
+    }
+
+    #[test]
+    fn rejects_invalid_global_settings() {
+        let input = r#"
+[default]
+inbox_dir = "/tmp"
+calls_dir = "/tmp"
+
+[transcription]
+model = "missing-engine-prefix"
+"#;
+        let error = parse_and_validate(input).unwrap_err().to_string();
+        assert!(error.contains("transcription.model must use engine:model-id format"));
     }
 }

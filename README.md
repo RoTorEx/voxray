@@ -142,6 +142,11 @@ defaults are: `date_format = "%Y-%m-%d %H-%M"`, `mode = "folder"`,
 A named profile is independent; it does not inherit
 missing required paths from `[default]`.
 
+Voxray validates the complete configuration before opening the interactive
+screen or running a command. Unknown keys, unknown modules, malformed model
+identifiers, invalid date formats, empty required paths, and invalid analysis
+settings stop startup with the file location and a readable explanation.
+
 Transcription always uses automatic language detection. Feedback accepts an
 optional per-call `--context`; it is never stored in a profile.
 

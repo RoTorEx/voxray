@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-30
+
 ### Changed
 
 - Routed direct Cargo and IDE build output to

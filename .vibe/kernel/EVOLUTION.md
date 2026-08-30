@@ -125,6 +125,19 @@ history access, and history must never be copied into instructions wholesale.
 
 ## Adoption notes
 
+### 1.3.5
+
+- Use `ROADMAP.md` for durable product direction and `TASK.md` for accepted,
+  executable work. Keep both only when both horizons exist, remove empty queues,
+  and migrate ambiguous `TODO.md` content according to its actual role.
+
+### 1.3.4
+
+- Define the smallest verifiable outcome before acting, respect documented and
+  user-defined boundaries, and stop for approval before expanding beyond them.
+- When consulting references or examples, begin with the closest relevant
+  source and stop once the evidence supports a safe decision.
+
 ### 1.3.3
 
 - Route bulky agent-created scratch, temporary checkouts, build outputs, and

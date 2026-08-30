@@ -32,7 +32,6 @@ This project uses committed local copies of the Vibecoding Kernel.
 
 Read these only when the task requires them:
 
-- `TASK.md` — task queue (process tasks in order; remove completed task sections).
 - `CHANGELOG.md` — release progress (update on releases).
 - `README.md` — quickstart, docs map, current product surface.
 - `docs/architecture/*` — design truth (agents choose scope; keep schemas/diagrams/relationships up to date).

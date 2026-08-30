@@ -15,21 +15,22 @@ These rules apply to normal work in every child project.
 Choose the mode from the requested outcome before acting:
 
 - **Maintenance** changes tracked repository code, rules, tests, or docs.
-- **Operation** uses the repository's tools and workflows to work on project,
-  user, or external state without changing the repository itself.
-- **Audit** inspects evidence and reports findings; it is read-only unless the
-  user explicitly requests repair.
+- **Operation** uses repository workflows on project, user, or external state without changing the repository itself.
+- **Audit** inspects evidence and reports findings; it is read-only unless the user explicitly requests repair.
 
-The same agent may use different modes in different tasks. Keep phases explicit
-in a mixed request and never silently expand one mode into another.
+The same agent may use different modes in different tasks. Keep phases explicit in mixed requests and never silently expand one mode into another.
 
-## Context
+## Context and scope
 
 - Read the root `AGENTS.md` and follow its task routing.
-- Read only the source, tests, and local documentation relevant to the task.
-- For product behavior or domain logic, read `BUSINESS.md` and the relevant
-  `business/*.md` module before editing.
-- Do not read every document or business module by default.
+- For product behavior, read `BUSINESS.md` and the relevant `business/*.md` module.
+- Start reference or example research with the closest relevant source; open more only for a named uncertainty, and stop when evidence supports a safe decision.
+- Before acting, define the smallest verifiable outcome authorized by the request.
+  Treat documented stages, priorities, deferred work, and non-goals as boundaries unless explicitly included.
+  Stop for approval before crossing; useful-looking work must not displace the request, and the final result must stay inside.
+- Use `ROADMAP.md` only for durable product direction: ordered outcomes, entry conditions, and deliberate deferrals. It does not authorize implementation.
+- Use `TASK.md` only for accepted, executable work in queue order. Remove completed work and record shipped behavior in product truth or the changelog.
+- Keep both only when the two horizons coexist; omit empty planning files and do not use the ambiguous `TODO.md` name.
 
 ## Preserve user knowledge
 
@@ -66,17 +67,16 @@ maintenance or repair phase.
 1. Run `git status --short` before editing.
 2. If the worktree is clean and the current branch has an upstream, run
    `git pull --ff-only`. If it is dirty, do not pull automatically.
-3. Preserve unrelated user changes and keep the task scope narrow.
-4. Make the smallest coherent change that completes the task.
-5. Run `make check`. If the project has executable code but no real
+3. Preserve unrelated changes and make the smallest coherent authorized change.
+4. Run `make check`. If the project has executable code but no real
    `make check`, add one using the project's native tools.
-6. Update durable documentation and `CHANGELOG.md` when behavior changed.
-7. If the task produced reusable evidence about agent behavior or rules, follow
+5. Update durable documentation and `CHANGELOG.md` when behavior changed.
+6. If the task produced reusable evidence about agent behavior or rules, follow
    the proposal loop in `EVOLUTION.md`.
-8. Commit the completed task as one atomic commit.
-9. Push the current tracked branch when it has an upstream, unless the user
+7. Commit the completed task as one atomic commit.
+8. Push the current tracked branch when it has an upstream, unless the user
    said not to push.
-10. Report the outcome and checks run.
+9. Report the outcome and checks run.
 
 Do not commit or present incomplete, blocked, or failing work as completed.
 Read-only, audit-only, and proposal-only requests do not create commits.

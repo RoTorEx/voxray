@@ -110,7 +110,9 @@ can continue to a later pipeline stage. Arrow keys change either value and
 Enter accepts the ready defaults, so neither choice is mandatory. Supplied
 `--profile` and `--through` values preselect their menu items instead of
 bypassing the screen. The selected profile is then used without walking through
-all of its values. Add `--edit-profile` to edit those values for one run.
+all of its values. Set `Settings` to `review & edit` to print the complete
+profile and then override any value for one run; `--edit-profile` preselects
+that choice.
 `--non-interactive` never prompts and is the mode for scripts and LLM-driven
 operation. Interactive `inbox` always asks for a non-empty call name when
 `--name` was not supplied; there is no basename default to accept accidentally.
@@ -134,11 +136,12 @@ fields for named profiles:
 | `calls_dir` | Destination library for recordings and derived artifacts | `--calls-dir` |
 | `date_format` | `strftime` prefix for call names; `""` disables the prefix | `--date-format` |
 | `mode` | Storage layout: `"folder"` or `"file"` | `--mode` |
+| `keep_video` | Retain original video alongside extracted `record.m4a` | `--keep-video` / `--discard-video` |
 | `modules` | Analysis modules: `sales`, `interview`, `english`, `communication`; `[]` disables analysis | `--module` (repeatable) |
 
 `inbox_dir` and `calls_dir` are required in every profile. Other built-in
 defaults are: `date_format = "%Y-%m-%d %H-%M"`, `mode = "folder"`,
-`modules = []`.
+`keep_video = false`, `modules = []`.
 A named profile is independent; it does not inherit
 missing required paths from `[default]`.
 
@@ -206,6 +209,10 @@ voxray inbox --profile sales \
 
 `--copy` is the default. `--move` deletes the source only after the target has
 been closed and its size verified. Existing recordings are never overwritten.
+Video input always produces the canonical `record.m4a`; the original video is
+not stored by default. Interactive mode asks what to do with it, preselected
+from the profile's `keep_video` setting. `--keep-video` and `--discard-video`
+override that setting; retained video is stored as `video.<ext>`.
 
 ## Transcribe
 
@@ -292,8 +299,8 @@ Folder mode:
 
 ```text
 Call Name/
-  record.<ext>
-  audio.m4a       # only for derived audio
+  record.<audio ext>
+  video.<ext>     # optional original video
   transcript.txt
   feedback.txt
   call.json
@@ -302,8 +309,8 @@ Call Name/
 File mode:
 
 ```text
-Call Name.record.<ext>
-Call Name.audio.m4a
+Call Name.record.<audio ext>
+Call Name.video.<ext>     # optional original video
 Call Name.transcript.txt
 Call Name.feedback.txt
 Call Name.call.json

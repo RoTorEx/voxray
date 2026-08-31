@@ -227,6 +227,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 Stage::Inbox,
                 args.profile.profile.as_deref(),
                 args.through.map(Into::into),
+                edit_profile,
                 presentation.interactive,
             )?;
             let plan = Plan::new(Stage::Inbox, launch.through)?;
@@ -236,7 +237,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 args.profile.clone(),
                 launch.profile,
                 presentation.interactive,
-                edit_profile,
+                launch.edit_profile,
             )?;
             run_from_inbox(
                 &config,
@@ -254,6 +255,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 Stage::Transcribe,
                 args.profile.profile.as_deref(),
                 args.through.map(Into::into),
+                edit_profile,
                 presentation.interactive,
             )?;
             let plan = Plan::new(Stage::Transcribe, launch.through)?;
@@ -263,7 +265,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 args.profile.clone(),
                 launch.profile,
                 presentation.interactive,
-                edit_profile,
+                launch.edit_profile,
             )?;
             run_from_transcribe(
                 &config,
@@ -282,6 +284,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 Stage::Feedback,
                 args.profile.profile.as_deref(),
                 None,
+                edit_profile,
                 presentation.interactive,
             )?;
             let target_speakers = args.profile.target_speakers.clone();
@@ -290,7 +293,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 args.profile,
                 launch.profile,
                 presentation.interactive,
-                edit_profile,
+                launch.edit_profile,
             )?;
             let transcript = resolve_transcript(
                 args.transcript,
@@ -355,6 +358,25 @@ fn run_from_inbox(
     } else {
         args.r#move
     };
+    let configured_keep_video = if args.keep_video {
+        true
+    } else if args.discard_video {
+        false
+    } else {
+        profile.keep_video
+    };
+    let keep_video = if presentation.interactive && media::is_video_file(&source) {
+        Select::new(
+            "Original video:",
+            vec!["discard (audio only)", "keep alongside audio"],
+        )
+        .with_starting_cursor(usize::from(configured_keep_video))
+        .prompt()
+        .map_err(|error| anyhow::anyhow!("Failed to select video retention: {error}"))?
+            == "keep alongside audio"
+    } else {
+        configured_keep_video
+    };
 
     let (inbox_outcome, recording) = run_inbox_step(
         profile_name,
@@ -362,6 +384,7 @@ fn run_from_inbox(
         source,
         name,
         move_source,
+        keep_video,
         presentation.show_effective,
     )?;
     let mut outcomes = vec![inbox_outcome];
@@ -446,9 +469,10 @@ fn run_inbox_step(
     source: PathBuf,
     name: String,
     move_source: bool,
+    keep_video: bool,
     show_effective: bool,
 ) -> Result<(CommandOutcome, TranscriptionInput)> {
-    let plan = inbox::plan(&source, &name, profile)?;
+    let plan = inbox::plan(&source, &name, keep_video, profile)?;
     let effective = effective_json(
         profile_name,
         profile,
@@ -457,21 +481,22 @@ fn run_inbox_step(
             "name": name,
             "source_action": if move_source {"move"} else {"copy"},
             "destination": plan.recording,
-            "derived_audio": plan.derived_audio,
+            "keep_video": keep_video,
+            "video": plan.video,
         }),
     );
     preview_effective(show_effective, "inbox", &effective);
-    let result = inbox::run(&source, &name, move_source, profile)?;
+    let result = inbox::run(&source, &name, move_source, keep_video, profile)?;
     let transcription_input = TranscriptionInput {
         recording: result.recording.clone(),
-        media: result.transcription_input().to_path_buf(),
+        media: result.recording.clone(),
     };
     let mut artifacts = BTreeMap::from([(
         "recording".to_string(),
         result.recording.display().to_string(),
     )]);
-    if let Some(path) = result.derived_audio {
-        artifacts.insert("audio".to_string(), path.display().to_string());
+    if let Some(path) = result.video {
+        artifacts.insert("video".to_string(), path.display().to_string());
     }
     Ok((
         step_outcome("inbox", "created".to_string(), effective, artifacts, None),
@@ -663,6 +688,29 @@ fn effective_profile(
 }
 
 fn prompt_profile(mut profile: Profile) -> Result<Profile> {
+    eprintln!("\nSelected profile settings:");
+    eprintln!("  inbox_dir   {}", profile.inbox_dir.display());
+    eprintln!("  calls_dir   {}", profile.calls_dir.display());
+    eprintln!(
+        "  date_format {}",
+        profile.date_format.as_deref().unwrap_or("%Y-%m-%d %H-%M")
+    );
+    eprintln!(
+        "  mode        {}",
+        match profile.mode.unwrap_or_default() {
+            Mode::File => "file",
+            Mode::Folder => "folder",
+        }
+    );
+    eprintln!("  keep_video  {}", profile.keep_video);
+    eprintln!(
+        "  modules     {}\n",
+        if profile.modules.is_empty() {
+            "(none)".to_string()
+        } else {
+            profile.modules.join(", ")
+        }
+    );
     profile.inbox_dir = PathBuf::from(prompt_text(
         "inbox_dir",
         &profile.inbox_dir.display().to_string(),
@@ -687,6 +735,10 @@ fn prompt_profile(mut profile: Profile) -> Result<Profile> {
         "folder" => Mode::Folder,
         _ => bail!("mode must be file or folder"),
     });
+    profile.keep_video = Confirm::new("keep_video")
+        .with_default(profile.keep_video)
+        .prompt()
+        .map_err(|error| anyhow::anyhow!("Failed to read keep_video: {error}"))?;
     profile.modules = split_list(&prompt_text(
         "modules (comma-separated)",
         &profile.modules.join(", "),
@@ -763,6 +815,7 @@ fn resolve_launch_selection(
     command: Stage,
     preferred_profile: Option<&str>,
     preferred_through: Option<Stage>,
+    preferred_edit_profile: bool,
     interactive: bool,
 ) -> Result<launcher::LaunchSelection> {
     if interactive {
@@ -771,12 +824,14 @@ fn resolve_launch_selection(
             config.profile_labels(),
             preferred_profile,
             preferred_through,
+            preferred_edit_profile,
         );
     }
 
     Ok(launcher::LaunchSelection {
         profile: preferred_profile.unwrap_or("default").to_string(),
         through: preferred_through,
+        edit_profile: false,
     })
 }
 
@@ -896,6 +951,7 @@ fn effective_json(profile_name: &str, profile: &Profile, command: Value) -> Valu
             "calls_dir": profile.calls_dir,
             "date_format": profile.date_format,
             "mode": profile.mode,
+            "keep_video": profile.keep_video,
             "report_language": config::REPORT_LANGUAGE,
             "modules": profile.modules,
         },

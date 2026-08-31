@@ -113,6 +113,14 @@ pub struct InboxArgs {
     #[arg(long, conflicts_with = "move")]
     pub copy: bool,
 
+    /// Retain the original video alongside extracted record.m4a
+    #[arg(long, conflicts_with = "discard_video")]
+    pub keep_video: bool,
+
+    /// Do not retain the original video, overriding the selected profile
+    #[arg(long, conflicts_with = "keep_video")]
+    pub discard_video: bool,
+
     /// Continue the pipeline through this stage
     #[arg(long, value_enum)]
     pub through: Option<InboxThroughArg>,
@@ -316,6 +324,46 @@ mod tests {
             panic!("expected inbox")
         };
         assert_eq!(args.through, Some(InboxThroughArg::Feedback));
+    }
+
+    #[test]
+    fn parses_video_retention_overrides() {
+        let keep = Cli::try_parse_from([
+            "voxray",
+            "inbox",
+            "--recording",
+            "/tmp/call.mov",
+            "--keep-video",
+            "--non-interactive",
+        ])
+        .unwrap();
+        let Commands::Inbox(keep) = keep.command else {
+            panic!("expected inbox")
+        };
+        assert!(keep.keep_video);
+        assert!(!keep.discard_video);
+
+        let discard = Cli::try_parse_from([
+            "voxray",
+            "inbox",
+            "--recording",
+            "/tmp/call.mov",
+            "--discard-video",
+            "--non-interactive",
+        ])
+        .unwrap();
+        let Commands::Inbox(discard) = discard.command else {
+            panic!("expected inbox")
+        };
+        assert!(discard.discard_video);
+        assert!(!discard.keep_video);
+    }
+
+    #[test]
+    fn rejects_conflicting_video_retention_overrides() {
+        assert!(
+            Cli::try_parse_from(["voxray", "inbox", "--keep-video", "--discard-video",]).is_err()
+        );
     }
 
     #[test]

@@ -3,6 +3,7 @@ inbox_dir = "/Users/you/Calls Inbox"
 calls_dir = "/Users/you/Calls"
 date_format = "%Y-%m-%d %H-%M"
 mode = "folder"
+keep_video = false
 modules = ["communication"]
 
 [profiles.dummy]
@@ -10,6 +11,7 @@ inbox_dir = "/path/to/inbox"
 calls_dir = "/path/to/calls"
 date_format = "%Y-%m-%d %H-%M"
 mode = "folder"
+keep_video = false
 modules = []
 
 [transcription]

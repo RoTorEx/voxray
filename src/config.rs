@@ -82,6 +82,9 @@ pub struct Profile {
     pub date_format: Option<String>,
     #[serde(default)]
     pub mode: Option<Mode>,
+    /// Whether video sources are retained alongside the canonical audio recording.
+    #[serde(default)]
+    pub keep_video: bool,
     /// Analysis modules enabled for this profile. `feedback` remains a read alias.
     #[serde(default, alias = "feedback")]
     pub modules: Vec<String>,
@@ -102,6 +105,7 @@ fn default_profile() -> Profile {
         calls_dir: desktop,
         date_format: None,
         mode: None,
+        keep_video: false,
         modules: Vec::new(),
     }
 }
@@ -112,6 +116,7 @@ fn dummy_profile() -> Profile {
         calls_dir: PathBuf::from("/path/to/calls"),
         date_format: Some("%Y-%m-%d %H-%M".to_string()),
         mode: Some(Mode::Folder),
+        keep_video: false,
         modules: Vec::new(),
     }
 }
@@ -346,8 +351,22 @@ reasoning_effort = "medium"
         let dummy = config.profiles.get("dummy").unwrap();
         assert_eq!(dummy.mode, Some(Mode::Folder));
         assert_eq!(dummy.date_format.as_deref(), Some("%Y-%m-%d %H-%M"));
+        assert!(!dummy.keep_video);
         assert!(dummy.modules.is_empty());
         assert!(!config.analysis_enabled());
+    }
+
+    #[test]
+    fn reads_profile_video_retention_default() {
+        let input = r#"
+[default]
+inbox_dir = "/tmp/inbox"
+calls_dir = "/tmp/calls"
+keep_video = true
+"#;
+
+        let config = parse_and_validate(input).unwrap();
+        assert!(config.default.keep_video);
     }
 
     #[test]

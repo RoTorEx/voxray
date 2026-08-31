@@ -4,6 +4,16 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reworked the interactive launch screen with a compact single-pane layout and
+  explicit high-contrast colors that remain readable across terminal themes.
+- Added an interactive `Settings` choice for reviewing and overriding all
+  selected profile values before a run.
+- Made video ingestion publish extracted audio as the canonical `record.m4a`
+  without retaining the source video by default. Profiles, the interactive
+  video prompt, and CLI flags can explicitly keep or discard the original.
+
 ## [0.4.1] - 2026-08-30
 
 ### Changed

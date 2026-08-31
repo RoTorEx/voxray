@@ -18,9 +18,16 @@ use ratatui::{
 
 use crate::workflow::Stage;
 
+const ACCENT: Color = Color::Rgb(94, 234, 212);
+const SELECTED_BG: Color = Color::Rgb(45, 212, 191);
+const SELECTED_FG: Color = Color::Rgb(8, 47, 73);
+const TEXT: Color = Color::Rgb(248, 250, 252);
+const MUTED: Color = Color::Rgb(203, 213, 225);
+
 pub struct LaunchSelection {
     pub profile: String,
     pub through: Option<Stage>,
+    pub edit_profile: bool,
 }
 
 struct LaunchMenu {
@@ -29,6 +36,7 @@ struct LaunchMenu {
     profile_index: usize,
     through: Vec<Option<Stage>>,
     through_index: usize,
+    edit_profile: bool,
     field: usize,
 }
 
@@ -38,6 +46,7 @@ impl LaunchMenu {
         profiles: Vec<String>,
         preferred_profile: Option<&str>,
         preferred_through: Option<Stage>,
+        preferred_edit_profile: bool,
     ) -> Result<Self> {
         let profile_index = match preferred_profile {
             Some(name) => profiles
@@ -57,12 +66,17 @@ impl LaunchMenu {
             profile_index,
             through,
             through_index,
+            edit_profile: preferred_edit_profile,
             field: 0,
         })
     }
 
     fn field_count(&self) -> usize {
-        if self.through.len() > 1 { 2 } else { 1 }
+        if self.has_through_field() { 3 } else { 2 }
+    }
+
+    fn has_through_field(&self) -> bool {
+        self.through.len() > 1
     }
 
     fn move_field(&mut self, delta: isize) {
@@ -72,8 +86,10 @@ impl LaunchMenu {
     fn change_value(&mut self, delta: isize) {
         if self.field == 0 {
             self.profile_index = cycle_index(self.profile_index, self.profiles.len(), delta);
-        } else {
+        } else if self.has_through_field() && self.field == 1 {
             self.through_index = cycle_index(self.through_index, self.through.len(), delta);
+        } else {
+            self.edit_profile = !self.edit_profile;
         }
     }
 
@@ -81,6 +97,7 @@ impl LaunchMenu {
         LaunchSelection {
             profile: self.profiles[self.profile_index].clone(),
             through: self.through[self.through_index],
+            edit_profile: self.edit_profile,
         }
     }
 }
@@ -90,8 +107,15 @@ pub fn run(
     profiles: Vec<String>,
     preferred_profile: Option<&str>,
     preferred_through: Option<Stage>,
+    preferred_edit_profile: bool,
 ) -> Result<LaunchSelection> {
-    let mut menu = LaunchMenu::new(command, profiles, preferred_profile, preferred_through)?;
+    let mut menu = LaunchMenu::new(
+        command,
+        profiles,
+        preferred_profile,
+        preferred_through,
+        preferred_edit_profile,
+    )?;
     let _guard = TerminalGuard::enter()?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
@@ -132,39 +156,35 @@ fn cycle_index(current: usize, length: usize, delta: isize) -> usize {
 }
 
 fn draw(frame: &mut ratatui::Frame, menu: &LaunchMenu) {
-    let area = centered_rect(
-        64,
-        if menu.field_count() == 2 { 12 } else { 10 },
-        frame.area(),
-    );
+    let area = centered_rect(60, 10, frame.area());
     frame.render_widget(Clear, area);
     let title = format!(" ◆ Voxray · {} ", title_case(menu.command.as_str()));
     let block = Block::default()
         .title(title)
         .title_alignment(Alignment::Left)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Cyan))
-        .padding(Padding::horizontal(2));
+        .border_style(Style::default().fg(ACCENT))
+        .padding(Padding::horizontal(1));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
     let rows = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(2),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Min(1),
+            Constraint::Length(1),
             Constraint::Length(1),
         ])
         .split(inner);
 
     frame.render_widget(
-        Paragraph::new("Configure this run").style(
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ),
+        Paragraph::new("Choose settings, then run")
+            .style(Style::default().fg(TEXT).add_modifier(Modifier::BOLD)),
         rows[0],
     );
     draw_field(
@@ -174,49 +194,78 @@ fn draw(frame: &mut ratatui::Frame, menu: &LaunchMenu) {
         &menu.profiles[menu.profile_index],
         menu.field == 0,
     );
-    if menu.field_count() == 2 {
+    let settings_row = if menu.has_through_field() { 4 } else { 3 };
+    if menu.has_through_field() {
         let through = menu.through[menu.through_index]
             .map(Stage::as_str)
             .unwrap_or("none");
         draw_field(frame, rows[2], "Through", through, menu.field == 1);
     }
-    frame.render_widget(
-        Paragraph::new("Defaults are ready — Enter starts the command")
-            .style(Style::default().fg(Color::DarkGray)),
-        rows[4],
+    draw_field(
+        frame,
+        rows[settings_row],
+        "Settings",
+        if menu.edit_profile {
+            "review & edit"
+        } else {
+            "use profile"
+        },
+        menu.field == menu.field_count() - 1,
     );
 
-    let help = "↑↓ field  •  ←→ value  •  Enter continue  •  Esc cancel";
-    let help_area = Rect::new(
-        frame.area().x,
-        area.y.saturating_add(area.height),
-        frame.area().width,
-        1,
-    );
     frame.render_widget(
-        Paragraph::new(help)
-            .alignment(Alignment::Center)
-            .style(Style::default().fg(Color::DarkGray)),
-        help_area,
+        Paragraph::new(Line::from(vec![
+            Span::styled(
+                "Enter",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" run", Style::default().fg(TEXT)),
+            Span::styled("  ·  ", Style::default().fg(MUTED)),
+            Span::styled(
+                "Esc",
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(" cancel", Style::default().fg(TEXT)),
+        ])),
+        rows[6],
+    );
+
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled("↑↓", Style::default().fg(ACCENT)),
+            Span::styled(" field", Style::default().fg(MUTED)),
+            Span::styled("  ·  ", Style::default().fg(MUTED)),
+            Span::styled("←→", Style::default().fg(ACCENT)),
+            Span::styled(" value", Style::default().fg(MUTED)),
+        ])),
+        rows[7],
     );
 }
 
 fn draw_field(frame: &mut ratatui::Frame, area: Rect, label: &str, value: &str, selected: bool) {
-    let style = if selected {
-        Style::default()
-            .bg(Color::Blue)
-            .fg(Color::White)
-            .add_modifier(Modifier::BOLD)
+    let (row_style, label_style, value_style, arrow_style) = if selected {
+        let selected = Style::default()
+            .fg(SELECTED_FG)
+            .bg(SELECTED_BG)
+            .add_modifier(Modifier::BOLD);
+        (selected, selected, selected, selected)
     } else {
-        Style::default().fg(Color::Gray)
+        (
+            Style::default(),
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            Style::default().fg(TEXT),
+            Style::default().fg(MUTED),
+        )
     };
     let marker = if selected { "›" } else { " " };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::styled(format!("{marker} {label:<9}"), style),
-            Span::styled(format!("‹ {value} › "), style),
+            Span::styled(format!("{marker} {label:<9}"), label_style),
+            Span::styled("‹ ", arrow_style),
+            Span::styled(value, value_style),
+            Span::styled(" ›", arrow_style),
         ]))
-        .style(style),
+        .style(row_style),
         area,
     );
 }
@@ -270,6 +319,7 @@ mod tests {
             vec!["default".to_string(), "sales".to_string()],
             None,
             None,
+            false,
         )
         .unwrap()
     }
@@ -281,6 +331,7 @@ mod tests {
 
         assert_eq!(selection.profile, "default");
         assert_eq!(selection.through, None);
+        assert!(!selection.edit_profile);
     }
 
     #[test]
@@ -302,16 +353,46 @@ mod tests {
             vec!["default".to_string(), "sales".to_string()],
             Some("sales"),
             Some(Stage::Feedback),
+            true,
         )
         .unwrap();
         let selection = menu.selection();
 
         assert_eq!(selection.profile, "sales");
         assert_eq!(selection.through, Some(Stage::Feedback));
+        assert!(selection.edit_profile);
     }
 
     #[test]
     fn feedback_has_no_irrelevant_through_field() {
-        assert_eq!(menu(Stage::Feedback).field_count(), 1);
+        assert_eq!(menu(Stage::Feedback).field_count(), 2);
+    }
+
+    #[test]
+    fn settings_row_enables_profile_review() {
+        let mut menu = menu(Stage::Inbox);
+        menu.move_field(1);
+        menu.move_field(1);
+        menu.change_value(1);
+
+        assert!(menu.selection().edit_profile);
+    }
+
+    #[test]
+    fn selected_row_uses_explicit_high_contrast_colors() {
+        let backend = ratatui::backend::TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal
+            .draw(|frame| draw(frame, &menu(Stage::Inbox)))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let selected = buffer
+            .content
+            .iter()
+            .find(|cell| cell.symbol() == "›")
+            .expect("selected row marker");
+
+        assert_eq!(selected.fg, SELECTED_FG);
+        assert_eq!(selected.bg, SELECTED_BG);
     }
 }

@@ -15,24 +15,18 @@ use crate::transcribe::extract_audio;
 pub struct InboxResult {
     pub recording: PathBuf,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub derived_audio: Option<PathBuf>,
+    pub video: Option<PathBuf>,
     pub source_action: String,
-}
-
-impl InboxResult {
-    pub fn transcription_input(&self) -> &Path {
-        self.derived_audio.as_deref().unwrap_or(&self.recording)
-    }
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct InboxPlan {
     pub recording: PathBuf,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub derived_audio: Option<PathBuf>,
+    pub video: Option<PathBuf>,
 }
 
-pub fn plan(source: &Path, name: &str, profile: &Profile) -> Result<InboxPlan> {
+pub fn plan(source: &Path, name: &str, keep_video: bool, profile: &Profile) -> Result<InboxPlan> {
     validate_source(source)?;
     let clean_name = sanitize_call_name(name);
     let date_format = profile.date_format.as_deref().unwrap_or("%Y-%m-%d %H-%M");
@@ -44,35 +38,67 @@ pub fn plan(source: &Path, name: &str, profile: &Profile) -> Result<InboxPlan> {
         .unwrap_or("m4a")
         .to_ascii_lowercase();
     let video = is_video_file(source);
-    let (recording, derived_audio) = match profile.mode.unwrap_or_default() {
-        Mode::Folder => {
-            let folder = profile.calls_dir.join(&base_name);
-            (
-                folder.join(format!("record.{extension}")),
-                video.then(|| folder.join("audio.m4a")),
-            )
-        }
-        Mode::File => (
-            profile
-                .calls_dir
-                .join(format!("{base_name}.record.{extension}")),
-            video.then(|| profile.calls_dir.join(format!("{base_name}.audio.m4a"))),
-        ),
-    };
+    let (recording, stored_video) = destination_paths(
+        &profile.calls_dir,
+        &base_name,
+        &extension,
+        profile.mode.unwrap_or_default(),
+        video,
+        keep_video,
+    );
     Ok(InboxPlan {
         recording,
-        derived_audio,
+        video: stored_video,
     })
 }
 
-pub fn run(source: &Path, name: &str, move_source: bool, profile: &Profile) -> Result<InboxResult> {
+fn destination_paths(
+    calls_dir: &Path,
+    base_name: &str,
+    extension: &str,
+    mode: Mode,
+    source_is_video: bool,
+    keep_video: bool,
+) -> (PathBuf, Option<PathBuf>) {
+    match mode {
+        Mode::Folder => {
+            let folder = calls_dir.join(base_name);
+            (
+                folder.join(if source_is_video {
+                    "record.m4a".to_string()
+                } else {
+                    format!("record.{extension}")
+                }),
+                (source_is_video && keep_video).then(|| folder.join(format!("video.{extension}"))),
+            )
+        }
+        Mode::File => (
+            calls_dir.join(if source_is_video {
+                format!("{base_name}.record.m4a")
+            } else {
+                format!("{base_name}.record.{extension}")
+            }),
+            (source_is_video && keep_video)
+                .then(|| calls_dir.join(format!("{base_name}.video.{extension}"))),
+        ),
+    }
+}
+
+pub fn run(
+    source: &Path,
+    name: &str,
+    move_source: bool,
+    keep_video: bool,
+    profile: &Profile,
+) -> Result<InboxResult> {
     validate_source(source)?;
     fs::create_dir_all(&profile.calls_dir)
         .with_context(|| format!("Failed to create {}", profile.calls_dir.display()))?;
 
-    let planned = plan(source, name, profile)?;
+    let source_is_video = is_video_file(source);
+    let planned = plan(source, name, keep_video, profile)?;
     let recording = planned.recording;
-    let derived_audio = planned.derived_audio;
+    let video = planned.video;
     match profile.mode.unwrap_or_default() {
         Mode::Folder => {
             let folder = recording
@@ -85,29 +111,36 @@ pub fn run(source: &Path, name: &str, move_source: bool, profile: &Profile) -> R
                 .with_context(|| format!("Failed to create {}", folder.display()))?;
         }
         Mode::File => {
-            if recording.exists() || derived_audio.as_ref().is_some_and(|path| path.exists()) {
+            if recording.exists() || video.as_ref().is_some_and(|path| path.exists()) {
                 bail!("Call target already exists: {}", recording.display());
             }
         }
     }
 
     let publication = (|| {
-        storage::atomic_copy(source, &recording)?;
-        if let Some(audio) = &derived_audio {
-            let temp = storage::temporary_sibling(audio)?;
+        if source_is_video {
+            let temp = storage::temporary_sibling(&recording)?;
             let result =
-                extract_audio(source, &temp).and_then(|_| storage::publish_temp(&temp, audio));
+                extract_audio(source, &temp).and_then(|_| storage::publish_temp(&temp, &recording));
             if result.is_err() {
                 let _ = fs::remove_file(&temp);
             }
             result?;
+            verify_nonempty(&recording)?;
+            if let Some(video) = &video {
+                storage::atomic_copy(source, video)?;
+                verify_copy(source, video)?;
+            }
+        } else {
+            storage::atomic_copy(source, &recording)?;
+            verify_copy(source, &recording)?;
         }
         Ok::<_, anyhow::Error>(())
     })();
     if let Err(error) = publication {
         let _ = fs::remove_file(&recording);
-        if let Some(audio) = &derived_audio {
-            let _ = fs::remove_file(audio);
+        if let Some(video) = &video {
+            let _ = fs::remove_file(video);
         }
         if matches!(profile.mode.unwrap_or_default(), Mode::Folder)
             && let Some(folder) = recording.parent()
@@ -117,21 +150,21 @@ pub fn run(source: &Path, name: &str, move_source: bool, profile: &Profile) -> R
         return Err(error);
     }
 
-    verify_copy(source, &recording)?;
     if move_source {
         fs::remove_file(source)
             .with_context(|| format!("Failed to remove source {}", source.display()))?;
     }
 
     logs::event(&format!(
-        "inbox_done source=\"{}\" recording=\"{}\" action={}",
+        "inbox_done source=\"{}\" recording=\"{}\" video={} action={}",
         source.display(),
         recording.display(),
+        video.is_some(),
         if move_source { "move" } else { "copy" }
     ));
     Ok(InboxResult {
         recording,
-        derived_audio,
+        video,
         source_action: if move_source { "move" } else { "copy" }.to_string(),
     })
 }
@@ -154,6 +187,14 @@ fn verify_copy(source: &Path, target: &Path) -> Result<()> {
     let target_size = fs::metadata(target)?.len();
     if source_size == 0 || source_size != target_size {
         bail!("Copy verification failed: source={source_size} bytes, target={target_size} bytes");
+    }
+    Ok(())
+}
+
+fn verify_nonempty(path: &Path) -> Result<()> {
+    let size = fs::metadata(path)?.len();
+    if size == 0 {
+        bail!("Generated recording is empty: {}", path.display());
     }
     Ok(())
 }
@@ -226,22 +267,41 @@ mod tests {
     }
 
     #[test]
-    fn prefers_derived_audio_for_transcription() {
-        let result = InboxResult {
-            recording: PathBuf::from("call.record.mov"),
-            derived_audio: Some(PathBuf::from("call.audio.m4a")),
-            source_action: "copy".to_string(),
-        };
-        assert_eq!(result.transcription_input(), Path::new("call.audio.m4a"));
+    fn video_uses_record_m4a_without_storing_video_by_default() {
+        let (recording, video) = destination_paths(
+            Path::new("/calls"),
+            "Call",
+            "mov",
+            Mode::Folder,
+            true,
+            false,
+        );
+
+        assert_eq!(recording, Path::new("/calls/Call/record.m4a"));
+        assert_eq!(video, None);
     }
 
     #[test]
-    fn uses_recording_when_no_audio_was_derived() {
-        let result = InboxResult {
-            recording: PathBuf::from("call.record.m4a"),
-            derived_audio: None,
-            source_action: "copy".to_string(),
-        };
-        assert_eq!(result.transcription_input(), Path::new("call.record.m4a"));
+    fn retained_video_is_a_secondary_artifact() {
+        let (recording, video) =
+            destination_paths(Path::new("/calls"), "Call", "mov", Mode::File, true, true);
+
+        assert_eq!(recording, Path::new("/calls/Call.record.m4a"));
+        assert_eq!(video.as_deref(), Some(Path::new("/calls/Call.video.mov")));
+    }
+
+    #[test]
+    fn audio_input_keeps_its_original_extension() {
+        let (recording, video) = destination_paths(
+            Path::new("/calls"),
+            "Call",
+            "wav",
+            Mode::Folder,
+            false,
+            true,
+        );
+
+        assert_eq!(recording, Path::new("/calls/Call/record.wav"));
+        assert_eq!(video, None);
     }
 }

@@ -76,8 +76,9 @@ release-push:
 
 release-publish: cargo-target-dir dist-dir
 	@set -e; \
-	test "$$(uname -s)" = "Darwin" || { echo "ERROR: release artifacts are supported on macOS only" >&2; exit 1; }; \
-	case "$$(uname -m)" in arm64) arch="aarch64" ;; x86_64) arch="x86_64" ;; *) echo "ERROR: unsupported architecture $$(uname -m)" >&2; exit 1 ;; esac; \
+	test "$$(uname -s)" = "Darwin" || { echo "ERROR: release artifacts are supported on Apple Silicon macOS only" >&2; exit 1; }; \
+	test "$$(uname -m)" = "arm64" || { echo "ERROR: release artifacts require Apple Silicon, got $$(uname -m)" >&2; exit 1; }; \
+	arch="aarch64"; \
 	archive="$(BIN_NAME)-macos-$$arch.tar.gz"; \
 	cargo build --release --locked; \
 	tar -czf "$(DIST_DIR)/$$archive" -C "$(CARGO_TARGET_DIR)/release" "$(BIN_NAME)" -C "$(CURDIR)" config.example.toml; \

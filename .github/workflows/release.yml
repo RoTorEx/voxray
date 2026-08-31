@@ -10,16 +10,8 @@ permissions:
 
 jobs:
   build:
-    name: build-${{ matrix.arch }}
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15
-            arch: aarch64
-          - runner: macos-15-intel
-            arch: x86_64
+    name: build-aarch64
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v6
@@ -39,12 +31,11 @@ jobs:
 
       - name: Smoke install release asset
         env:
-          ARCH: ${{ matrix.arch }}
           DIST_DIR: ${{ runner.temp }}/voxray-dist
           INSTALL_DIR: ${{ runner.temp }}/voxray-install
         run: |
           sh scripts/install.sh \
-            --archive "$DIST_DIR/voxray-macos-$ARCH.tar.gz" \
+            --archive "$DIST_DIR/voxray-macos-aarch64.tar.gz" \
             --install-dir "$INSTALL_DIR" \
             --no-path-update
           "$INSTALL_DIR/bin/voxray" --version
@@ -52,7 +43,7 @@ jobs:
       - name: Upload release assets
         uses: actions/upload-artifact@v6
         with:
-          name: voxray-macos-${{ matrix.arch }}
+          name: voxray-macos-aarch64
           path: ${{ runner.temp }}/voxray-dist/*
           if-no-files-found: error
 
@@ -66,9 +57,8 @@ jobs:
 
       - uses: actions/download-artifact@v7
         with:
+          name: voxray-macos-aarch64
           path: release-assets
-          pattern: voxray-macos-*
-          merge-multiple: true
 
       - name: Include installer
         run: cp scripts/install.sh release-assets/voxray-install.sh

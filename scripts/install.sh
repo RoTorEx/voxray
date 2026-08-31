@@ -12,8 +12,9 @@ usage() {
     cat <<'EOF'
 Usage: voxray-install.sh [--version VERSION|latest] [--install-dir PATH] [--archive PATH] [--no-path-update]
 
-Installs a macOS GitHub Release, or a local release archive. For a private fork,
-set GH_INSTALLER_TOKEN; it is saved with mode 0600 for future updates.
+Installs an Apple Silicon macOS GitHub Release, or a local release archive. For
+a private fork, set GH_INSTALLER_TOKEN; it is saved with mode 0600 for future
+updates.
 EOF
 }
 
@@ -31,11 +32,10 @@ done
 bin_dir="$install_dir/bin"
 token_file="${token_file_override:-$install_dir/gh-token}"
 
-[ "$(uname -s)" = "Darwin" ] || { echo "ERROR: voxray releases currently support macOS only" >&2; exit 1; }
+[ "$(uname -s)" = "Darwin" ] || { echo "ERROR: voxray releases support Apple Silicon macOS only" >&2; exit 1; }
 case "$(uname -m)" in
     arm64|aarch64) arch=aarch64 ;;
-    x86_64|amd64) arch=x86_64 ;;
-    *) echo "ERROR: unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+    *) echo "ERROR: unsupported architecture: $(uname -m); voxray releases require Apple Silicon" >&2; exit 1 ;;
 esac
 
 archive="voxray-macos-$arch.tar.gz"

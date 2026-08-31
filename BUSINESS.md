@@ -61,6 +61,8 @@ library, transcripts, and optional coaching feedback.
 - Configuration is parsed and validated in full before any interactive screen
   or working command starts. Unknown keys and invalid values are fatal and the
   error identifies the file, field, and reason in operator-readable language.
+- Published binaries and the release installer support macOS on Apple Silicon
+  only. Intel macOS is not a release target.
 
 ## Code map
 

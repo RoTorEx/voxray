@@ -13,7 +13,7 @@ continue through a later stage with `--through`.
 
 ## Requirements
 
-- macOS
+- macOS on Apple Silicon
 - MacWhisper CLI (`mw`)
 - `ffmpeg`
 - an OpenAI API key for `feedback`
@@ -342,10 +342,10 @@ After reviewing the commit and tag, publish them:
 make release-push
 ```
 
-The pushed tag builds macOS Apple Silicon and Intel archives in GitHub Actions
-and publishes them, their SHA-256 checksums, and `voxray-install.sh` to the
-matching GitHub Release. CI runs `make check` on pushes and pull requests;
-ordinary pushes to `main` do not publish a release.
+The pushed tag builds one macOS Apple Silicon archive in GitHub Actions and
+publishes it, its SHA-256 checksum, and `voxray-install.sh` to the matching
+GitHub Release. Intel Macs are not a release target. CI runs `make check` on
+pushes and pull requests; ordinary pushes to `main` do not publish a release.
 
 ## Docs
 

@@ -4,6 +4,11 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+### Changed
+
+- Limited published binaries and the release installer to macOS on Apple
+  Silicon; Intel macOS archives are no longer built.
+
 ## [0.4.2] - 2026-08-31
 
 ### Fixed

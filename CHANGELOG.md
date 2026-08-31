@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-31
+
 ### Fixed
 
 - Reworked the interactive launch screen with a compact single-pane layout and

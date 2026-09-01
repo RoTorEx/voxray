@@ -115,6 +115,9 @@ directly.
 `--non-interactive` never prompts and is the mode for scripts and LLM-driven
 operation. Interactive `inbox` always asks for a non-empty call name when
 `--name` was not supplied; there is no basename default to accept accidentally.
+Any value supplied explicitly through a CLI flag is final for that run and is
+omitted from later menus and prompts, including profile review, `through`, video
+retention, `force`, and feedback context.
 
 Resolved profile, destination, and command-specific values are kept out of the
 normal human-readable output. Add `--show-effective` to print them before each

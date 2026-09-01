@@ -13,6 +13,8 @@ Tracks real product progress.
 
 - Made an explicit `--profile` bypass the interactive launch screen while
   preserving supplied `--through` and `--edit-profile` behavior.
+- Stopped interactive menus and prompts from repeating values already supplied
+  through CLI flags.
 
 ## [0.4.2] - 2026-08-31
 

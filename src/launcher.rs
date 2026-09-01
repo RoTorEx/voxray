@@ -36,7 +36,9 @@ struct LaunchMenu {
     profile_index: usize,
     through: Vec<Option<Stage>>,
     through_index: usize,
+    show_through: bool,
     edit_profile: bool,
+    show_settings: bool,
     field: usize,
 }
 
@@ -60,23 +62,26 @@ impl LaunchMenu {
             .iter()
             .position(|stage| *stage == preferred_through)
             .context("Selected --through stage is unavailable for this command")?;
+        let show_through = through.len() > 1 && preferred_through.is_none();
         Ok(Self {
             command,
             profiles,
             profile_index,
             through,
             through_index,
+            show_through,
             edit_profile: preferred_edit_profile,
+            show_settings: !preferred_edit_profile,
             field: 0,
         })
     }
 
     fn field_count(&self) -> usize {
-        if self.has_through_field() { 3 } else { 2 }
+        1 + usize::from(self.show_through) + usize::from(self.show_settings)
     }
 
     fn has_through_field(&self) -> bool {
-        self.through.len() > 1
+        self.show_through
     }
 
     fn move_field(&mut self, delta: isize) {
@@ -88,7 +93,7 @@ impl LaunchMenu {
             self.profile_index = cycle_index(self.profile_index, self.profiles.len(), delta);
         } else if self.has_through_field() && self.field == 1 {
             self.through_index = cycle_index(self.through_index, self.through.len(), delta);
-        } else {
+        } else if self.show_settings {
             self.edit_profile = !self.edit_profile;
         }
     }
@@ -194,24 +199,35 @@ fn draw(frame: &mut ratatui::Frame, menu: &LaunchMenu) {
         &menu.profiles[menu.profile_index],
         menu.field == 0,
     );
-    let settings_row = if menu.has_through_field() { 4 } else { 3 };
+    let mut next_row = 2;
+    let mut next_field = 1;
     if menu.has_through_field() {
         let through = menu.through[menu.through_index]
             .map(Stage::as_str)
             .unwrap_or("none");
-        draw_field(frame, rows[2], "Through", through, menu.field == 1);
+        draw_field(
+            frame,
+            rows[next_row],
+            "Through",
+            through,
+            menu.field == next_field,
+        );
+        next_row += 1;
+        next_field += 1;
     }
-    draw_field(
-        frame,
-        rows[settings_row],
-        "Settings",
-        if menu.edit_profile {
-            "review & edit"
-        } else {
-            "use profile"
-        },
-        menu.field == menu.field_count() - 1,
-    );
+    if menu.show_settings {
+        draw_field(
+            frame,
+            rows[next_row],
+            "Settings",
+            if menu.edit_profile {
+                "review & edit"
+            } else {
+                "use profile"
+            },
+            menu.field == next_field,
+        );
+    }
 
     frame.render_widget(
         Paragraph::new(Line::from(vec![
@@ -361,11 +377,44 @@ mod tests {
         assert_eq!(selection.profile, "sales");
         assert_eq!(selection.through, Some(Stage::Feedback));
         assert!(selection.edit_profile);
+        assert_eq!(menu.field_count(), 1);
     }
 
     #[test]
     fn feedback_has_no_irrelevant_through_field() {
         assert_eq!(menu(Stage::Feedback).field_count(), 2);
+    }
+
+    #[test]
+    fn explicit_through_is_not_shown_as_an_interactive_field() {
+        let menu = LaunchMenu::new(
+            Stage::Inbox,
+            vec!["default".to_string(), "sales".to_string()],
+            None,
+            Some(Stage::Transcribe),
+            false,
+        )
+        .unwrap();
+
+        assert!(!menu.has_through_field());
+        assert_eq!(menu.field_count(), 2);
+        assert_eq!(menu.selection().through, Some(Stage::Transcribe));
+    }
+
+    #[test]
+    fn explicit_edit_profile_is_not_shown_as_an_interactive_field() {
+        let menu = LaunchMenu::new(
+            Stage::Inbox,
+            vec!["default".to_string(), "sales".to_string()],
+            None,
+            None,
+            true,
+        )
+        .unwrap();
+
+        assert!(!menu.show_settings);
+        assert_eq!(menu.field_count(), 2);
+        assert!(menu.selection().edit_profile);
     }
 
     #[test]

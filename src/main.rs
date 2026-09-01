@@ -222,6 +222,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
     let edit_profile = cli.edit_profile;
     match cli.command {
         Commands::Inbox(args) => {
+            let video_retention_overridden = args.keep_video || args.discard_video;
             let launch = resolve_launch_selection(
                 &config,
                 Stage::Inbox,
@@ -238,6 +239,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 launch.profile,
                 presentation.interactive,
                 launch.edit_profile,
+                video_retention_overridden,
             )?;
             run_from_inbox(
                 &config,
@@ -266,6 +268,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 launch.profile,
                 presentation.interactive,
                 launch.edit_profile,
+                false,
             )?;
             run_from_transcribe(
                 &config,
@@ -294,6 +297,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 launch.profile,
                 presentation.interactive,
                 launch.edit_profile,
+                false,
             )?;
             let transcript = resolve_transcript(
                 args.transcript,
@@ -365,7 +369,12 @@ fn run_from_inbox(
     } else {
         profile.keep_video
     };
-    let keep_video = if presentation.interactive && media::is_video_file(&source) {
+    let keep_video = if should_prompt_video_retention(
+        presentation.interactive,
+        media::is_video_file(&source),
+        args.keep_video,
+        args.discard_video,
+    ) {
         Select::new(
             "Original video:",
             vec!["discard (audio only)", "keep alongside audio"],
@@ -419,6 +428,15 @@ fn run_from_inbox(
         )?);
     }
     Ok(finish_workflow(Stage::Inbox, &plan, outcomes))
+}
+
+fn should_prompt_video_retention(
+    interactive: bool,
+    source_is_video: bool,
+    keep_video: bool,
+    discard_video: bool,
+) -> bool {
+    interactive && source_is_video && !keep_video && !discard_video
 }
 
 fn run_from_transcribe(
@@ -660,9 +678,11 @@ fn effective_profile(
     profile_name: String,
     interactive: bool,
     edit_profile: bool,
+    keep_video_overridden: bool,
 ) -> Result<(String, Profile)> {
     let base = config.profile((profile_name != "default").then_some(profile_name.as_str()))?;
     let mut profile = base.clone();
+    let prompt_fields = ProfilePromptFields::from_args(&args, keep_video_overridden);
     if let Some(value) = args.inbox_dir {
         profile.inbox_dir = value;
     }
@@ -680,14 +700,37 @@ fn effective_profile(
     }
 
     if interactive && edit_profile {
-        profile = prompt_profile(profile)?;
+        profile = prompt_profile(profile, prompt_fields)?;
     }
     profile.mode.get_or_insert(Mode::Folder);
     validate_profile(&profile)?;
     Ok((profile_name, profile))
 }
 
-fn prompt_profile(mut profile: Profile) -> Result<Profile> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ProfilePromptFields {
+    inbox_dir: bool,
+    calls_dir: bool,
+    date_format: bool,
+    mode: bool,
+    keep_video: bool,
+    modules: bool,
+}
+
+impl ProfilePromptFields {
+    fn from_args(args: &ProfileArgs, keep_video_overridden: bool) -> Self {
+        Self {
+            inbox_dir: args.inbox_dir.is_none(),
+            calls_dir: args.calls_dir.is_none(),
+            date_format: args.date_format.is_none(),
+            mode: args.mode.is_none(),
+            keep_video: !keep_video_overridden,
+            modules: args.modules.is_empty(),
+        }
+    }
+}
+
+fn prompt_profile(mut profile: Profile, fields: ProfilePromptFields) -> Result<Profile> {
     eprintln!("\nSelected profile settings:");
     eprintln!("  inbox_dir   {}", profile.inbox_dir.display());
     eprintln!("  calls_dir   {}", profile.calls_dir.display());
@@ -711,38 +754,50 @@ fn prompt_profile(mut profile: Profile) -> Result<Profile> {
             profile.modules.join(", ")
         }
     );
-    profile.inbox_dir = PathBuf::from(prompt_text(
-        "inbox_dir",
-        &profile.inbox_dir.display().to_string(),
-    )?);
-    profile.calls_dir = PathBuf::from(prompt_text(
-        "calls_dir",
-        &profile.calls_dir.display().to_string(),
-    )?);
-    profile.date_format = Some(prompt_text(
-        "date_format",
-        profile.date_format.as_deref().unwrap_or("%Y-%m-%d %H-%M"),
-    )?);
-    let mode = prompt_text(
-        "mode (file/folder)",
-        match profile.mode.unwrap_or_default() {
-            Mode::File => "file",
-            Mode::Folder => "folder",
-        },
-    )?;
-    profile.mode = Some(match mode.as_str() {
-        "file" => Mode::File,
-        "folder" => Mode::Folder,
-        _ => bail!("mode must be file or folder"),
-    });
-    profile.keep_video = Confirm::new("keep_video")
-        .with_default(profile.keep_video)
-        .prompt()
-        .map_err(|error| anyhow::anyhow!("Failed to read keep_video: {error}"))?;
-    profile.modules = split_list(&prompt_text(
-        "modules (comma-separated)",
-        &profile.modules.join(", "),
-    )?);
+    if fields.inbox_dir {
+        profile.inbox_dir = PathBuf::from(prompt_text(
+            "inbox_dir",
+            &profile.inbox_dir.display().to_string(),
+        )?);
+    }
+    if fields.calls_dir {
+        profile.calls_dir = PathBuf::from(prompt_text(
+            "calls_dir",
+            &profile.calls_dir.display().to_string(),
+        )?);
+    }
+    if fields.date_format {
+        profile.date_format = Some(prompt_text(
+            "date_format",
+            profile.date_format.as_deref().unwrap_or("%Y-%m-%d %H-%M"),
+        )?);
+    }
+    if fields.mode {
+        let mode = prompt_text(
+            "mode (file/folder)",
+            match profile.mode.unwrap_or_default() {
+                Mode::File => "file",
+                Mode::Folder => "folder",
+            },
+        )?;
+        profile.mode = Some(match mode.as_str() {
+            "file" => Mode::File,
+            "folder" => Mode::Folder,
+            _ => bail!("mode must be file or folder"),
+        });
+    }
+    if fields.keep_video {
+        profile.keep_video = Confirm::new("keep_video")
+            .with_default(profile.keep_video)
+            .prompt()
+            .map_err(|error| anyhow::anyhow!("Failed to read keep_video: {error}"))?;
+    }
+    if fields.modules {
+        profile.modules = split_list(&prompt_text(
+            "modules (comma-separated)",
+            &profile.modules.join(", "),
+        )?);
+    }
     Ok(profile)
 }
 
@@ -796,7 +851,7 @@ fn validate_profile(profile: &Profile) -> Result<()> {
 }
 
 fn resolve_feedback_context(value: Option<String>, interactive: bool) -> Result<Option<String>> {
-    if !interactive {
+    if value.is_some() || !interactive {
         return Ok(normalize_optional_text(value.as_deref()));
     }
     let value = prompt_text("Context (optional)", value.as_deref().unwrap_or(""))?;
@@ -934,7 +989,7 @@ fn is_transcript(path: &Path) -> bool {
 }
 
 fn prompt_force(current: bool, interactive: bool, label: &str) -> Result<bool> {
-    if !interactive {
+    if current || !interactive {
         return Ok(current);
     }
     Confirm::new(label)
@@ -989,9 +1044,11 @@ fn print_human_outcome(outcome: &CommandOutcome) {
 #[cfg(test)]
 mod main_tests {
     use super::{
-        Stage, config::Config, normalize_call_name_input, normalize_optional_text,
-        resolve_launch_selection,
+        ProfileArgs, ProfilePromptFields, Stage, cli::ModeArg, config::Config,
+        normalize_call_name_input, normalize_optional_text, prompt_force, resolve_feedback_context,
+        resolve_launch_selection, should_prompt_video_retention,
     };
+    use std::path::PathBuf;
 
     #[test]
     fn interactive_call_name_requires_explicit_non_empty_input() {
@@ -1011,6 +1068,41 @@ mod main_tests {
             normalize_optional_text(Some("  Prepare for objections  ")),
             Some("Prepare for objections".to_string())
         );
+        assert_eq!(
+            resolve_feedback_context(Some("  From CLI  ".to_string()), true).unwrap(),
+            Some("From CLI".to_string())
+        );
+    }
+
+    #[test]
+    fn explicit_force_does_not_prompt_in_interactive_mode() {
+        assert!(prompt_force(true, true, "unused").unwrap());
+    }
+
+    #[test]
+    fn explicit_video_policy_does_not_prompt() {
+        assert!(!should_prompt_video_retention(true, true, true, false));
+        assert!(!should_prompt_video_retention(true, true, false, true));
+        assert!(should_prompt_video_retention(true, true, false, false));
+    }
+
+    #[test]
+    fn profile_editor_omits_cli_overrides() {
+        let args = ProfileArgs {
+            inbox_dir: Some(PathBuf::from("/explicit/inbox")),
+            mode: Some(ModeArg::File),
+            modules: vec!["sales".to_string()],
+            ..ProfileArgs::default()
+        };
+
+        let fields = ProfilePromptFields::from_args(&args, true);
+
+        assert!(!fields.inbox_dir);
+        assert!(fields.calls_dir);
+        assert!(fields.date_format);
+        assert!(!fields.mode);
+        assert!(!fields.keep_video);
+        assert!(!fields.modules);
     }
 
     #[test]

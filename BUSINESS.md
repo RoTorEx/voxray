@@ -30,6 +30,10 @@ library, transcripts, and optional coaching feedback.
 3. After profile selection, interactive mode asks only for command-specific
    choices. Profile editing is an explicit one-run action selected on the launch
    screen or preselected via `--edit-profile`.
+   Any value explicitly supplied by a CLI flag is final for that run: it is not
+   displayed again as an interactive choice and is not requested again during
+   profile review or command-specific prompting. Interactive input is reserved
+   for values the invocation did not define.
 4. Store the source safely; remove it only after a requested move is verified.
    Video input is converted to the canonical `record.m4a`; the original video
    is not stored in the call unless requested. Interactive operation asks with

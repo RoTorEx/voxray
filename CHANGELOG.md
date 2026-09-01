@@ -9,6 +9,11 @@ Tracks real product progress.
 - Limited published binaries and the release installer to macOS on Apple
   Silicon; Intel macOS archives are no longer built.
 
+### Fixed
+
+- Made an explicit `--profile` bypass the interactive launch screen while
+  preserving supplied `--through` and `--edit-profile` behavior.
+
 ## [0.4.2] - 2026-08-31
 
 ### Fixed

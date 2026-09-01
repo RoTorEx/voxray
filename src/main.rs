@@ -818,7 +818,7 @@ fn resolve_launch_selection(
     preferred_edit_profile: bool,
     interactive: bool,
 ) -> Result<launcher::LaunchSelection> {
-    if interactive {
+    if interactive && preferred_profile.is_none() {
         return launcher::run(
             command,
             config.profile_labels(),
@@ -831,7 +831,7 @@ fn resolve_launch_selection(
     Ok(launcher::LaunchSelection {
         profile: preferred_profile.unwrap_or("default").to_string(),
         through: preferred_through,
-        edit_profile: false,
+        edit_profile: preferred_edit_profile,
     })
 }
 
@@ -988,7 +988,10 @@ fn print_human_outcome(outcome: &CommandOutcome) {
 
 #[cfg(test)]
 mod main_tests {
-    use super::{normalize_call_name_input, normalize_optional_text};
+    use super::{
+        Stage, config::Config, normalize_call_name_input, normalize_optional_text,
+        resolve_launch_selection,
+    };
 
     #[test]
     fn interactive_call_name_requires_explicit_non_empty_input() {
@@ -1008,5 +1011,39 @@ mod main_tests {
             normalize_optional_text(Some("  Prepare for objections  ")),
             Some("Prepare for objections".to_string())
         );
+    }
+
+    #[test]
+    fn explicit_profile_bypasses_launcher_and_keeps_cli_choices() {
+        let selection = resolve_launch_selection(
+            &Config::starter(),
+            Stage::Inbox,
+            Some("dummy"),
+            Some(Stage::Transcribe),
+            true,
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(selection.profile, "dummy");
+        assert_eq!(selection.through, Some(Stage::Transcribe));
+        assert!(selection.edit_profile);
+    }
+
+    #[test]
+    fn explicit_profile_uses_no_pipeline_when_through_is_absent() {
+        let selection = resolve_launch_selection(
+            &Config::starter(),
+            Stage::Inbox,
+            Some("dummy"),
+            None,
+            false,
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(selection.profile, "dummy");
+        assert_eq!(selection.through, None);
+        assert!(!selection.edit_profile);
     }
 }

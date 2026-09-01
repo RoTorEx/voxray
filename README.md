@@ -104,15 +104,14 @@ CLI override in interactive and non-interactive operation. Resolution order is:
 CLI flag -> selected profile -> [default] -> built-in safe default
 ```
 
-Every interactive working command starts with one compact launch screen.
-`Profile` defaults to `default`; `Through` defaults to `none` when the command
-can continue to a later pipeline stage. Arrow keys change either value and
-Enter accepts the ready defaults, so neither choice is mandatory. Supplied
-`--profile` and `--through` values preselect their menu items instead of
-bypassing the screen. The selected profile is then used without walking through
-all of its values. Set `Settings` to `review & edit` to print the complete
-profile and then override any value for one run; `--edit-profile` preselects
-that choice.
+An interactive working command opens the compact launch screen when no profile
+was supplied. `Profile` defaults to `default`; `Through` defaults to `none` when
+the command can continue to a later pipeline stage. Arrow keys change either
+value and Enter accepts the ready defaults. Supplying `--profile` bypasses this
+screen; `--through` is used as supplied, or defaults to `none` when omitted.
+Set `Settings` to `review & edit` to print the complete profile and override any
+value for one run. With an explicit profile, `--edit-profile` starts that review
+directly.
 `--non-interactive` never prompts and is the mode for scripts and LLM-driven
 operation. Interactive `inbox` always asks for a non-empty call name when
 `--name` was not supplied; there is no basename default to accept accidentally.

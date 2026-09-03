@@ -351,6 +351,7 @@ pushes and pull requests; ordinary pushes to `main` do not publish a release.
 
 ## Docs
 
+- [Product roadmap](ROADMAP.md)
 - [Feedback contract](docs/features/feedback.md)
 - `CHANGELOG.md` — unreleased changes
 - `AGENTS.md` — contributor workflow router

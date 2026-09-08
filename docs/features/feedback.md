@@ -39,7 +39,7 @@ lists without Markdown syntax. It contains:
 - no more than two important issues per module;
 - timestamped evidence and a concrete better action or phrase;
 - an ASCII `CALL STATISTICS` table rendered by local code;
-- no more than 500 prose words in total.
+- no hard limit on total prose words.
 
 The terminal prints the same Quick Review immediately after generation.
 Existing feedback is preserved unless `--force` is explicit. Publication uses

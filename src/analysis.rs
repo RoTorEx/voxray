@@ -232,10 +232,6 @@ fn perform_analysis(
         warnings: output.warnings,
     };
     let feedback = render_feedback(&document);
-    let feedback_words = prose_word_count(&feedback);
-    if feedback_words > 500 {
-        bail!("Rendered feedback is {feedback_words} words; maximum is 500");
-    }
     Ok((document, feedback))
 }
 
@@ -759,12 +755,6 @@ fn normalize_timestamp(value: &str) -> Option<String> {
         normalized.push(prefix.split('.').next().unwrap_or(&prefix).to_string());
     }
     (!normalized.is_empty()).then(|| normalized.join("-"))
-}
-
-fn prose_word_count(text: &str) -> usize {
-    text.split_whitespace()
-        .filter(|word| word.chars().any(char::is_alphanumeric))
-        .count()
 }
 
 fn read_api_key() -> Result<String> {

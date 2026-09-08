@@ -15,6 +15,8 @@ Tracks real product progress.
   preserving supplied `--through` and `--edit-profile` behavior.
 - Stopped interactive menus and prompts from repeating values already supplied
   through CLI flags.
+- Removed the hard 500-word rejection for rendered feedback so a complete
+  report is saved instead of failing after analysis.
 
 ## [0.4.2] - 2026-08-31
 

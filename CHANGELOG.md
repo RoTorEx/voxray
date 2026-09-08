@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-09-08
+
 ### Changed
 
 - Limited published binaries and the release installer to macOS on Apple

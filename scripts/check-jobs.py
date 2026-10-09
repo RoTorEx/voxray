@@ -13,6 +13,10 @@ import tempfile
 import uuid
 
 binary = Path(sys.argv[1]).resolve()
+ffmpeg = shutil.which("ffmpeg")
+ffprobe = shutil.which("ffprobe")
+if not ffmpeg or not ffprobe:
+    sys.exit("Media contract checks require ffmpeg and ffprobe on PATH. Install ffmpeg first.")
 construction = Path.home() / "construction_side/voxray"
 construction.mkdir(parents=True, exist_ok=True)
 with tempfile.TemporaryDirectory(prefix="jobs-check-", dir=construction) as temporary:
@@ -21,7 +25,7 @@ with tempfile.TemporaryDirectory(prefix="jobs-check-", dir=construction) as temp
     cli = root / "bin/voxray"
     shutil.copy2(binary, cli)
     source = root / "source.m4a"
-    subprocess.run(["/opt/homebrew/bin/ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+    subprocess.run([ffmpeg, "-v", "error", "-f", "lavfi", "-i",
                     "sine=frequency=440:duration=3", "-c:a", "aac", str(source)], check=True)
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     config = root / "config.toml"
@@ -98,7 +102,7 @@ with open(output,"w") as file:
     invoke("jobs", "run", "--id", request["recording_id"], environment=missing)
     assert hashlib.sha256(transcript.read_bytes()).hexdigest() == transcript_digest
     assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
-    media = subprocess.run(["/opt/homebrew/bin/ffprobe", "-v", "error", "-show_entries",
+    media = subprocess.run([ffprobe, "-v", "error", "-show_entries",
                             "format=duration", "-of", "json", str(imported)],
                            capture_output=True, text=True, check=True)
     assert float(json.loads(media.stdout)["format"]["duration"]) >= 3

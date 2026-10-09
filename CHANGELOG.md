@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Install media-check dependencies in CI and resolve ffmpeg/ffprobe from PATH.
+
 ## [0.5.0] - 2026-10-10
 
 - Added versioned profile discovery and durable native capture jobs with

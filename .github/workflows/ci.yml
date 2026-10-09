@@ -19,5 +19,8 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Install media test dependencies
+        run: brew install ffmpeg
+
       - name: Check
         run: make check

@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-10
+
 - Added versioned profile discovery and durable native capture jobs with
   idempotent submission, import/transcription retry, stage errors and artifacts.
 - Preserve recorder sources and a private import copy; refuse destination

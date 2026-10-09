@@ -94,10 +94,11 @@ pub fn run(
         .arg(&raw_target)
         .arg(transcription_input)
         .stdout(Stdio::null())
-        .status()
+        .spawn()
         .with_context(
             || "Failed to run mw transcribe; install MacWhisper CLI and ensure mw is on PATH",
         )?;
+    let status = wait_for_transcription(status, std::time::Duration::from_secs(7_200))?;
     if !status.success() {
         let _ = std::fs::remove_file(&raw_target);
         bail!("MacWhisper transcription failed with status {status}");
@@ -128,9 +129,33 @@ pub fn run(
     })
 }
 
+fn wait_for_transcription(
+    mut child: std::process::Child,
+    timeout: std::time::Duration,
+) -> Result<std::process::ExitStatus> {
+    let started = Instant::now();
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok(status);
+        }
+        if started.elapsed() >= timeout {
+            let _ = child.kill();
+            let _ = child.wait();
+            bail!("MacWhisper timed out; saved recording is unchanged. Retry the job.");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hung_transcriber_is_killed_and_reaped() {
+        let child = Command::new("/bin/sleep").arg("10").spawn().unwrap();
+        assert!(wait_for_transcription(child, std::time::Duration::from_millis(10)).is_err());
+    }
 
     #[test]
     fn tells_ffmpeg_to_write_m4a_when_temporary_path_ends_in_tmp() {

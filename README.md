@@ -11,6 +11,14 @@ Voxray has three workflow commands:
 Each command runs independently by default. `inbox` and `transcribe` can also
 continue through a later stage with `--through`.
 
+## Native recording applications
+
+`voxray profiles` and `voxray jobs submit/status/run` provide a versioned,
+noninteractive handoff for recording applications. Accepted jobs survive process
+exit, preserve source recordings, and retry import/transcription independently.
+These commands do not require an OpenAI token or run feedback.
+See [capture jobs](docs/contracts/capture-jobs.md) for requests and recovery.
+
 ## Requirements
 
 - macOS on Apple Silicon

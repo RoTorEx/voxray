@@ -4,6 +4,13 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Added versioned profile discovery and durable native capture jobs with
+  idempotent submission, import/transcription retry, stage errors and artifacts.
+- Preserve recorder sources and a private import copy; refuse destination
+  conflicts and damaged job state.
+- Require the OpenAI token only for feedback and bound MacWhisper execution.
+
+
 ## [0.4.3] - 2026-09-08
 
 ### Changed

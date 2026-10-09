@@ -28,10 +28,26 @@ pub struct InboxPlan {
 
 pub fn plan(source: &Path, name: &str, keep_video: bool, profile: &Profile) -> Result<InboxPlan> {
     validate_source(source)?;
+    plan_at(
+        source,
+        name,
+        keep_video,
+        profile,
+        &extract_datetime(source)?,
+    )
+}
+
+pub fn plan_at(
+    source: &Path,
+    name: &str,
+    keep_video: bool,
+    profile: &Profile,
+    datetime: &NaiveDateTime,
+) -> Result<InboxPlan> {
+    validate_source(source)?;
     let clean_name = sanitize_call_name(name);
     let date_format = profile.date_format.as_deref().unwrap_or("%Y-%m-%d %H-%M");
-    let datetime = extract_datetime(source)?;
-    let base_name = build_base_name(&datetime, date_format, &clean_name);
+    let base_name = build_base_name(datetime, date_format, &clean_name);
     let extension = source
         .extension()
         .and_then(|value| value.to_str())

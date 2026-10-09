@@ -16,6 +16,7 @@ mod call;
 mod cli;
 mod config;
 mod inbox;
+mod jobs;
 mod launcher;
 mod logs;
 mod media;
@@ -95,6 +96,22 @@ fn main() {
             return;
         }
     };
+    if matches!(&cli.command, Commands::Profiles | Commands::Jobs(_)) {
+        match jobs::dispatch(&cli.command) {
+            Ok(data) => println!(
+                "{}",
+                json!({"status":"ok","contract_version":1,"data":data})
+            ),
+            Err(error) => {
+                println!(
+                    "{}",
+                    json!({"status":"error","contract_version":1,"message":format!("{error:#}")})
+                );
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     let json_output = cli.json;
     let result = run(cli);
     match result {
@@ -212,9 +229,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
         });
     }
     let config = Config::load()?;
-    if config.analysis_enabled() {
-        analysis::require_api_key()?;
-    }
+
     let presentation = Presentation {
         interactive: !cli.non_interactive,
         show_effective: cli.show_effective,
@@ -322,6 +337,9 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 },
                 presentation,
             )
+        }
+        Commands::Profiles | Commands::Jobs(_) => {
+            unreachable!("native contracts handled before workflow")
         }
         Commands::Update => unreachable!("update returns before configuration is loaded"),
         Commands::SetupAiToken => {
@@ -571,6 +589,9 @@ fn run_feedback_step(
     options: FeedbackStepOptions<'_>,
     presentation: Presentation,
 ) -> Result<CommandOutcome> {
+    if config.analysis_enabled() {
+        analysis::require_api_key()?;
+    }
     let paths = call::CallPaths::from_transcript(&transcript)?;
     let effective = effective_json(
         profile_name,

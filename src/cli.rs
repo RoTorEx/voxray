@@ -33,6 +33,13 @@ pub enum Commands {
     /// Print the installed CLI version
     Version,
 
+    /// List recording destinations without invoking paid analysis
+    Profiles,
+
+    /// Durable recording jobs for native capture applications
+    #[command(subcommand)]
+    Jobs(JobCommand),
+
     /// Install the latest GitHub Release
     Update,
 
@@ -406,4 +413,23 @@ mod tests {
             assert!(Cli::try_parse_from(["voxray", "feedback", flag, "value"]).is_err());
         }
     }
+}
+
+#[derive(Debug, Subcommand)]
+pub enum JobCommand {
+    /// Accept a JSON request and preserve a private source copy
+    Submit {
+        #[arg(long)]
+        request: PathBuf,
+    },
+    /// Read saved state, including artifacts after a failed stage
+    Status {
+        #[arg(long)]
+        id: String,
+    },
+    /// Execute or retry unfinished import and transcription stages
+    Run {
+        #[arg(long)]
+        id: String,
+    },
 }

@@ -42,6 +42,7 @@ check: cargo-target-dir
 	cargo clippy --locked --all-targets --all-features -- -D warnings
 	cargo test --locked --all-targets
 	cargo build --release --locked
+	python3 scripts/check-jobs.py "$(CARGO_TARGET_DIR)/release/$(BIN_NAME)"
 
 run: cargo-target-dir
 	cargo run --locked --

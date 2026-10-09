@@ -45,6 +45,16 @@ library, transcripts, and optional coaching feedback.
    profile. Interactive operation prompts for it; non-interactive operation
    accepts `--context`.
 
+## Native recording handoff
+
+A recorder may select a profile and name before capture and hand off a finalized
+recording after it has been saved. Capture and original-media recovery belong to
+the recorder. Voxray exposes profile discovery and durable import/transcription
+jobs; integration cannot stop capture or delete a recorder original. A repeated
+recording UUID resumes the same job and destination. Failed transcription retains
+imported audio and stage information for retry. Feedback is a separate choice.
+See [contract 1](docs/contracts/capture-jobs.md).
+
 ## Invariants
 
 - Interactive `inbox` requires an explicit non-empty call name unless `--name`
@@ -65,7 +75,8 @@ library, transcripts, and optional coaching feedback.
   those concerns begin in `feedback` after the transcript exists.
 - API tokens and transcript contents are never written to operational logs.
 - Configuration is parsed and validated in full before any interactive screen
-  or working command starts. Unknown keys and invalid values are fatal and the
+  or new working command starts. Status and retry use an accepted job snapshot
+  even when the current configuration is unavailable. Unknown keys and invalid values are fatal and the
   error identifies the file, field, and reason in operator-readable language.
 - Published binaries and the release installer support macOS on Apple Silicon
   only. Intel macOS is not a release target.

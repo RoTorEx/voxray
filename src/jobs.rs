@@ -22,6 +22,13 @@ pub struct Request {
     pub recorded_at: String,
     pub profile: String,
     pub name: String,
+    /// Per-recording choice; omitted in legacy requests means transcribe.
+    #[serde(default = "default_transcribe")]
+    pub transcribe: bool,
+}
+
+fn default_transcribe() -> bool {
+    true
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -129,7 +136,16 @@ fn load(directory: &Path) -> Result<Job> {
     if directory.file_name().and_then(|v| v.to_str()) != Some(&job.id) {
         bail!("Job identity mismatch");
     }
-    if !["queued", "importing", "transcribing", "ready", "failed"].contains(&job.stage.as_str()) {
+    if ![
+        "queued",
+        "importing",
+        "transcribing",
+        "stored",
+        "ready",
+        "failed",
+    ]
+    .contains(&job.stage.as_str())
+    {
         bail!("Invalid job stage");
     }
     if job.request.recording_id.to_ascii_lowercase() != job.id
@@ -203,8 +219,8 @@ fn run(root: &Path, id: &str) -> Result<Job> {
     let directory = directory(root, id)?;
     let _lock = lock(&directory)?;
     let mut job = load(&directory)?;
-    if job.stage == "ready" {
-        if !job.recording.is_file() || !job.transcript.is_file() {
+    if job.stage == "ready" || job.stage == "stored" {
+        if !job.recording.is_file() || (job.stage == "ready" && !job.transcript.is_file()) {
             bail!("Completed job artifacts are missing");
         }
         return Ok(job);
@@ -261,6 +277,10 @@ fn execute(directory: &Path, job: &mut Job) -> Result<()> {
     }
     if fs::metadata(&job.recording)?.len() == 0 {
         bail!("Saved recording is empty");
+    }
+    if !job.request.transcribe {
+        job.stage = "stored".into();
+        return save(directory, job);
     }
     job.stage = "transcribing".into();
     save(directory, job)?;
@@ -359,9 +379,41 @@ mod tests {
             recorded_at: "2026-10-09T15:00:00+02:00".into(),
             profile: "default".into(),
             name: "Daily".into(),
+            transcribe: true,
         };
         (root, config, request)
     }
+    #[test]
+    fn import_only_completes_without_transcript_and_preserves_source() {
+        let (root, config, mut request) = fixture();
+        request.transcribe = false;
+        let jobs = root.join("jobs");
+        let accepted = submit(&jobs, request.clone(), &config).unwrap();
+        let completed = run(&jobs, &accepted.id).unwrap();
+        assert_eq!(completed.stage, "stored");
+        assert!(!completed.transcript.exists());
+        assert_eq!(fs::read(&completed.recording).unwrap(), b"original samples");
+        assert_eq!(fs::read(&request.recording).unwrap(), b"original samples");
+        assert_eq!(run(&jobs, &accepted.id).unwrap().stage, "stored");
+        let mut changed = request;
+        changed.transcribe = true;
+        assert!(submit(&jobs, changed, &config).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn legacy_requests_keep_transcription_enabled() {
+        let (root, _, request) = fixture();
+        let mut encoded = serde_json::to_value(&request).unwrap();
+        encoded.as_object_mut().unwrap().remove("transcribe");
+        assert!(
+            serde_json::from_value::<Request>(encoded)
+                .unwrap()
+                .transcribe
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn duplicate_submission_and_corrupt_state_preserve_identity() {
         let (root, config, request) = fixture();

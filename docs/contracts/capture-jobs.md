@@ -27,20 +27,27 @@ Request fields (unknown fields rejected):
   "recording": "/absolute/finalized-recording.m4a",
   "recorded_at": "2026-10-09T15:00:00+02:00",
   "profile": "av eni",
-  "name": "Engineering Daily"
+  "name": "Engineering Daily",
+  "transcribe": true
 }
 ```
 
 The RFC3339 offset supplies the capture's calendar date, independent of file
 mtime or a collision suffix. Call names use the existing sanitization policy.
 Native calls use a folder within the selected profile's `calls_dir`, with its
-configured date prefix, `record.*` and `transcript.txt`. Folder mode is deliberate
+configured date prefix and `record.*`; `transcript.txt` is created only when the
+per-recording `transcribe` choice is true. Omitted `transcribe` defaults to true
+for existing requests and job files. This choice is independent of the profile
+and immutable after submit. Import-only jobs never invoke MacWhisper; their
+terminal stage is `stored`, and the transcript path is planned but absent.
+Folder mode is deliberate
 for this contract; existing CLI file-mode workflows remain available.
 
 Jobs are private directories in `~/.x-cli-voxray/jobs/UUID/` for the installed
 layout, or beside a development binary's app home. State has `schema_version`,
 `id`, `request`, `stage`, `recording`, `transcript`, `error` and `model`. Stages:
-`queued`, `importing`, `transcribing`, `ready`, `failed`.
+`queued`, `importing`, `transcribing`, `stored` (audio filed), `ready` (transcript
+complete), `failed`.
 
 Submit persists identity before work. Run makes and synchronizes a private
 `source.*` copy before importing; neither source is automatically deleted. The

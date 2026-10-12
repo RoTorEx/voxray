@@ -4,6 +4,9 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Allow native recording jobs to import audio without transcription using a
+  per-recording choice, preserving the default behavior of older requests.
+
 - Install media-check dependencies in CI and resolve ffmpeg/ffprobe from PATH.
 
 ## [0.5.0] - 2026-10-10

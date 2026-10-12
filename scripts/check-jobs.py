@@ -53,6 +53,31 @@ modules = ["communication"]
     accepted = invoke("jobs", "submit", "--request", str(path))
     assert invoke("jobs", "submit", "--request", str(path))["id"] == accepted["id"]
     assert Path(accepted["recording"]).parent.name == "2026-10-09 Daily"
+    video = root / "source.mov"
+    subprocess.run([ffmpeg, "-v", "error", "-f", "lavfi", "-i", "color=size=64x64:duration=3",
+                    "-i", str(source), "-c:v", "mpeg4", "-c:a", "copy", "-shortest", str(video)], check=True)
+    guard_bin = root / "guard"
+    guard_bin.mkdir()
+    sentinel = root / "unexpected-transcription"
+    guard = guard_bin / "mw"
+    guard.write_text(f'#!/bin/sh\ntouch "{sentinel}"\nexit 1\n')
+    guard.chmod(0o700)
+    import_environment = dict(os.environ, PATH=str(guard_bin) + ":" + os.environ["PATH"])
+    for index, media in enumerate([source, video]):
+        original_digest = hashlib.sha256(media.read_bytes()).hexdigest()
+        import_request = dict(request, recording_id=str(uuid.uuid4()), recording=str(media),
+                              name=f"Import only {index}", transcribe=False)
+        path.write_text(json.dumps(import_request))
+        imported_job = invoke("jobs", "submit", "--request", str(path))
+        stored = invoke("jobs", "run", "--id", imported_job["id"], environment=import_environment)
+        assert stored["stage"] == "stored" and not Path(stored["transcript"]).exists(), stored
+        assert not sentinel.exists(), "Import-only request invoked the transcriber"
+        assert hashlib.sha256(media.read_bytes()).hexdigest() == original_digest
+        assert invoke("jobs", "run", "--id", stored["id"], environment=import_environment)["stage"] == "stored"
+        decoded = subprocess.run([ffprobe, "-v", "error", "-show_entries", "stream=codec_type",
+                                  "-of", "json", stored["recording"]], capture_output=True, text=True, check=True)
+        assert [s["codec_type"] for s in json.loads(decoded.stdout)["streams"]] == ["audio"]
+    path.write_text(json.dumps(request))
     missing = dict(os.environ, PATH="/usr/bin:/bin")
     failed = invoke("jobs", "run", "--id", request["recording_id"], environment=missing)
     assert failed["stage"] == "failed" and failed["error"], failed

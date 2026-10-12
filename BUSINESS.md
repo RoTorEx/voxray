@@ -53,6 +53,8 @@ the recorder. Voxray exposes profile discovery and durable import/transcription
 jobs; integration cannot stop capture or delete a recorder original. A repeated
 recording UUID resumes the same job and destination. Failed transcription retains
 imported audio and stage information for retry. Feedback is a separate choice.
+Transcription is a per-recording choice in the native request, independent of
+the profile. Import-only requests complete without invoking the transcriber.
 See [contract 1](docs/contracts/capture-jobs.md).
 
 ## Invariants

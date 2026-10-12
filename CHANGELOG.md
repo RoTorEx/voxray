@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-12
+
 - Allow native recording jobs to import audio without transcription using a
   per-recording choice, preserving the default behavior of older requests.
 

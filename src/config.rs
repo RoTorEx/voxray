@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use chrono::format::{Item, StrftimeItems};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
@@ -16,7 +16,7 @@ pub struct Config {
     #[serde(default = "default_profile")]
     pub default: Profile,
     #[serde(default)]
-    pub profiles: HashMap<String, Profile>,
+    pub profiles: IndexMap<String, Profile>,
     #[serde(default, alias = "feedback")]
     pub analysis: AnalysisConfig,
     #[serde(default)]
@@ -148,7 +148,7 @@ impl Config {
     pub fn starter() -> Self {
         Config {
             default: default_profile(),
-            profiles: HashMap::from([("dummy".to_string(), dummy_profile())]),
+            profiles: IndexMap::from([("dummy".to_string(), dummy_profile())]),
             analysis: AnalysisConfig::default(),
             transcription: TranscriptionConfig::default(),
         }
@@ -200,9 +200,7 @@ impl Config {
 
     pub fn profile_labels(&self) -> Vec<String> {
         let mut labels = vec!["default".to_string()];
-        let mut names: Vec<String> = self.profiles.keys().cloned().collect();
-        names.sort();
-        labels.extend(names);
+        labels.extend(self.profiles.keys().cloned());
         labels
     }
 
@@ -317,6 +315,29 @@ mod tests {
         assert_eq!(
             app_home_from_executable(std::path::Path::new("/tmp/target/debug/voxray")).unwrap(),
             PathBuf::from("/tmp/target/debug")
+        );
+    }
+
+    #[test]
+    fn profile_order_survives_parsing_and_serialization() {
+        let input = r#"
+[profiles.zebra]
+inbox_dir = "/tmp"
+calls_dir = "/tmp/zebra"
+[profiles."a quoted profile"]
+inbox_dir = "/tmp"
+calls_dir = "/tmp/quoted"
+[profiles.middle]
+inbox_dir = "/tmp"
+calls_dir = "/tmp/middle"
+"#;
+        let config = parse_and_validate(input).unwrap();
+        let expected = vec!["default", "zebra", "a quoted profile", "middle"];
+        assert_eq!(config.profile_labels(), expected);
+        let saved = toml::to_string_pretty(&config).unwrap();
+        assert_eq!(
+            parse_and_validate(&saved).unwrap().profile_labels(),
+            expected
         );
     }
 

@@ -4,6 +4,9 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Preserve TOML profile declaration order in CLI selection and native discovery,
+  including configuration serialization. Keep default first.
+
 - Support per-recording keep_video in native jobs, retaining video alongside
   canonical audio without changing legacy requests or deleting originals.
 

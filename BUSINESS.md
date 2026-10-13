@@ -45,6 +45,10 @@ library, transcripts, and optional coaching feedback.
    profile. Interactive operation prompts for it; non-interactive operation
    accepts `--context`.
 
+Profile menus follow named-profile declaration order in the TOML configuration,
+with `default` first. Parsing and saving preserve that order; native discovery
+returns the same sequence so recorder menus do not apply their own sorting.
+
 ## Native recording handoff
 
 A recorder may select a profile and name before capture and hand off a finalized

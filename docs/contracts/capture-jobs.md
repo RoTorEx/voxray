@@ -12,7 +12,8 @@ never prompt. Integration errors before a job is accepted use the error envelope
 and nonzero exit. A failed accepted stage returns the job, including its error
 and artifact paths; its stage is `failed`.
 
-- `voxray profiles`: array of `{id,calls_dir}`, including `default`.
+- `voxray profiles`: array of `{id,calls_dir}`, with `default` first followed by
+  named profiles in their TOML declaration order. Consumers retain this order.
 - `voxray jobs submit --request /absolute/request.json`: validates and persists
   identity, destination and transcription model, without invoking transcription.
 - `voxray jobs status --id UUID`: reads the saved job without loading config.

@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-13
+
 - Preserve TOML profile declaration order in CLI selection and native discovery,
   including configuration serialization. Keep default first.
 

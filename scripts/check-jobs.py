@@ -63,14 +63,18 @@ modules = ["communication"]
     guard.write_text(f'#!/bin/sh\ntouch "{sentinel}"\nexit 1\n')
     guard.chmod(0o700)
     import_environment = dict(os.environ, PATH=str(guard_bin) + ":" + os.environ["PATH"])
-    for index, media in enumerate([source, video]):
+    for index, media in enumerate([source, video, video]):
         original_digest = hashlib.sha256(media.read_bytes()).hexdigest()
         import_request = dict(request, recording_id=str(uuid.uuid4()), recording=str(media),
-                              name=f"Import only {index}", transcribe=False)
+                              name=f"Import only {index}", transcribe=False, keep_video=index == 2)
         path.write_text(json.dumps(import_request))
         imported_job = invoke("jobs", "submit", "--request", str(path))
         stored = invoke("jobs", "run", "--id", imported_job["id"], environment=import_environment)
         assert stored["stage"] == "stored" and not Path(stored["transcript"]).exists(), stored
+        retained_video = Path(stored["recording"]).parent / "video.mov"
+        assert retained_video.exists() == (index == 2)
+        if index == 2:
+            assert hashlib.sha256(retained_video.read_bytes()).hexdigest() == original_digest
         assert not sentinel.exists(), "Import-only request invoked the transcriber"
         assert hashlib.sha256(media.read_bytes()).hexdigest() == original_digest
         assert invoke("jobs", "run", "--id", stored["id"], environment=import_environment)["stage"] == "stored"

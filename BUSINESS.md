@@ -54,7 +54,9 @@ jobs; integration cannot stop capture or delete a recorder original. A repeated
 recording UUID resumes the same job and destination. Failed transcription retains
 imported audio and stage information for retry. Feedback is a separate choice.
 Transcription is a per-recording choice in the native request, independent of
-the profile. Import-only requests complete without invoking the transcriber.
+the profile. Import-only requests complete without invoking the transcriber. Native requests
+may enable `keep_video` to retain video alongside canonical audio; legacy native
+requests remain audio-only. Recorder originals are preserved in either case.
 See [contract 1](docs/contracts/capture-jobs.md).
 
 ## Invariants

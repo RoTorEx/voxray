@@ -25,6 +25,9 @@ pub struct Request {
     /// Per-recording choice; omitted in legacy requests means transcribe.
     #[serde(default = "default_transcribe")]
     pub transcribe: bool,
+    /// Retain video alongside canonical audio; legacy native requests are audio-only.
+    #[serde(default)]
+    pub keep_video: bool,
 }
 
 fn default_transcribe() -> bool {
@@ -192,7 +195,7 @@ fn submit(root: &Path, mut request: Request, config: &Config) -> Result<Job> {
     let planned = inbox::plan_at(
         &request.recording,
         &request.name,
-        false,
+        request.keep_video,
         &profile,
         &recorded_at,
     )?;
@@ -220,6 +223,20 @@ fn run(root: &Path, id: &str) -> Result<Job> {
     let _lock = lock(&directory)?;
     let mut job = load(&directory)?;
     if job.stage == "ready" || job.stage == "stored" {
+        if job.request.keep_video && media::is_video_file(&job.request.recording) {
+            let folder = job.recording.parent().context("Missing destination")?;
+            let extension = job
+                .request
+                .recording
+                .extension()
+                .context("Missing extension")?;
+            if !folder
+                .join(format!("video.{}", extension.to_string_lossy()))
+                .is_file()
+            {
+                bail!("Completed job video is missing");
+            }
+        }
         if !job.recording.is_file() || (job.stage == "ready" && !job.transcript.is_file()) {
             bail!("Completed job artifacts are missing");
         }
@@ -277,6 +294,25 @@ fn execute(directory: &Path, job: &mut Job) -> Result<()> {
     }
     if fs::metadata(&job.recording)?.len() == 0 {
         bail!("Saved recording is empty");
+    }
+    if job.request.keep_video && media::is_video_file(&source) {
+        let video = folder.join(format!(
+            "video.{}",
+            source.extension().unwrap().to_string_lossy()
+        ));
+        if !video.exists() {
+            let temp = folder.join(format!(".video-{}.tmp", std::process::id()));
+            fs::copy(&source, &temp)?;
+            if fs::metadata(&temp)?.len() != fs::metadata(&source)?.len() {
+                bail!("Video copy verification failed");
+            }
+            File::open(&temp)?.sync_all()?;
+            fs::rename(temp, &video)?;
+            File::open(folder)?.sync_all()?;
+        }
+        if fs::metadata(&video)?.len() != fs::metadata(&source)?.len() {
+            bail!("Saved video size differs from source");
+        }
     }
     if !job.request.transcribe {
         job.stage = "stored".into();
@@ -380,6 +416,7 @@ mod tests {
             profile: "default".into(),
             name: "Daily".into(),
             transcribe: true,
+            keep_video: false,
         };
         (root, config, request)
     }
@@ -406,6 +443,9 @@ mod tests {
         let (root, _, request) = fixture();
         let mut encoded = serde_json::to_value(&request).unwrap();
         encoded.as_object_mut().unwrap().remove("transcribe");
+        encoded.as_object_mut().unwrap().remove("keep_video");
+        let legacy = serde_json::from_value::<Request>(encoded.clone()).unwrap();
+        assert!(!legacy.keep_video);
         assert!(
             serde_json::from_value::<Request>(encoded)
                 .unwrap()

@@ -4,6 +4,9 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Support per-recording keep_video in native jobs, retaining video alongside
+  canonical audio without changing legacy requests or deleting originals.
+
 ## [0.5.1] - 2026-10-12
 
 - Allow native recording jobs to import audio without transcription using a

@@ -28,7 +28,8 @@ Request fields (unknown fields rejected):
   "recorded_at": "2026-10-09T15:00:00+02:00",
   "profile": "av eni",
   "name": "Engineering Daily",
-  "transcribe": true
+  "transcribe": true,
+  "keep_video": false
 }
 ```
 
@@ -40,6 +41,10 @@ per-recording `transcribe` choice is true. Omitted `transcribe` defaults to true
 for existing requests and job files. This choice is independent of the profile
 and immutable after submit. Import-only jobs never invoke MacWhisper; their
 terminal stage is `stored`, and the transcript path is planned but absent.
+The optional `keep_video` choice defaults to false for legacy native jobs.
+For video input, true publishes a synchronized `video.<extension>` copy beside
+canonical audio; false files only audio. Both choices preserve caller originals
+and the private source snapshot. It freezes at submit and survives retries.
 Folder mode is deliberate
 for this contract; existing CLI file-mode workflows remain available.
 

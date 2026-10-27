@@ -69,7 +69,7 @@ See [contract 1](docs/contracts/capture-jobs.md).
   was supplied. Only non-interactive operation may fall back to the source
   basename.
 - Existing recordings are never overwritten.
-- Every stored call has one canonical `record.<audio extension>`. Video input
+- Every media-retaining stored call has one canonical `record.<audio extension>`. Video input
   therefore produces `record.m4a`, never `audio.m4a` or `record.<video extension>`.
 - Human-readable output stays concise by default. Full resolved parameters are
   diagnostic output enabled by `--show-effective`; JSON output remains
@@ -96,3 +96,19 @@ See [contract 1](docs/contracts/capture-jobs.md).
 - `src/transcribe.rs`, `src/transcript.rs`: transcription and speaker mapping.
 - `src/analysis.rs`: feedback generation.
 - `src/config.rs`: profiles and configuration resolution.
+
+## Optional personal Drive archive and text retention
+
+The operator can collect calls from multiple devices in one personal Google
+Drive folder, route projects to separate folders, and share folders using
+Google Drive. Upload is explicitly optional, defaults off, and runs after the
+last requested successful stage. Profiles define upload defaults and folder IDs;
+one-run overrides and recorder controls win. Credentials use personal user OAuth,
+not service accounts. No account is connected until separately configured.
+
+Transcript-only is always a per-call opt-in, never a configuration default.
+Only a verified saved transcript and successful requested upload allow media
+removal. This verifies file integrity, not speech-recognition completeness.
+Voxray never deletes recorder originals; the recorder owns that explicit cleanup
+once its completed native job confirms media removal. Default runs preserve media.
+See [Google Drive and retention](docs/features/google-drive.md).

@@ -1,4 +1,4 @@
-//! Versioned, local-only handoff. Capture originals are never mutated.
+//! Versioned recording handoff with optional Drive archiving. Capture originals are never mutated.
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 
 use crate::cli::{Commands, JobCommand};
 use crate::config::{self, Config, Mode};
-use crate::{inbox, media, transcribe};
+use crate::{call::CallPaths, drive, inbox, media, retention, transcribe};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -28,6 +28,12 @@ pub struct Request {
     /// Retain video alongside canonical audio; legacy native requests are audio-only.
     #[serde(default)]
     pub keep_video: bool,
+    #[serde(default)]
+    pub google_drive: Option<bool>,
+    #[serde(default)]
+    pub drive_folder: Option<String>,
+    #[serde(default)]
+    pub transcript_only: bool,
 }
 
 fn default_transcribe() -> bool {
@@ -45,6 +51,14 @@ pub struct Job {
     pub transcript: PathBuf,
     pub error: Option<String>,
     pub model: String,
+    #[serde(default)]
+    pub drive: crate::config::DriveOptions,
+    #[serde(default)]
+    pub drive_config: crate::config::GoogleDriveConfig,
+    #[serde(default)]
+    pub drive_url: Option<String>,
+    #[serde(default)]
+    pub media_removed: bool,
 }
 
 pub fn dispatch(command: &Commands) -> Result<Value> {
@@ -62,25 +76,30 @@ pub fn dispatch(command: &Commands) -> Result<Value> {
                         } else {
                             &config.profiles[&id]
                         };
-                        json!({"id":id,"calls_dir":profile.calls_dir})
+                        json!({"id":id,"calls_dir":profile.calls_dir,"google_drive":profile.drive.enabled,"drive_folder":profile.drive.folder_id,"drive_supported":true})
                     })
                     .collect::<Vec<_>>()
             ))
         }
         Commands::Jobs(JobCommand::Submit { request }) => {
             let request: Request = serde_json::from_slice(&fs::read(request)?)?;
-            Ok(serde_json::to_value(submit(
-                &root,
-                request,
-                &Config::load()?,
-            )?)?)
+            job_value(submit(&root, request, &Config::load()?)?)
         }
-        Commands::Jobs(JobCommand::Status { id }) => {
-            Ok(serde_json::to_value(load(&directory(&root, id)?)?)?)
-        }
-        Commands::Jobs(JobCommand::Run { id }) => Ok(serde_json::to_value(run(&root, id)?)?),
+        Commands::Jobs(JobCommand::Status { id }) => job_value(load(&directory(&root, id)?)?),
+        Commands::Jobs(JobCommand::Run { id }) => job_value(run(&root, id)?),
         _ => bail!("Not a native contract"),
     }
+}
+
+// Ready is a fresh verification at the bridge boundary, not only a saved flag.
+fn job_value(job: Job) -> Result<Value> {
+    if job.media_removed {
+        if !job.request.transcript_only || job.stage != "ready" {
+            bail!("Invalid media removal state");
+        }
+        retention::verify(&job.recording, &CallPaths::from_recording(&job.recording)?)?;
+    }
+    Ok(serde_json::to_value(job)?)
 }
 
 fn directory(root: &Path, id: &str) -> Result<PathBuf> {
@@ -143,6 +162,7 @@ fn load(directory: &Path) -> Result<Job> {
         "queued",
         "importing",
         "transcribing",
+        "finalizing",
         "stored",
         "ready",
         "failed",
@@ -183,6 +203,9 @@ fn submit(root: &Path, mut request: Request, config: &Config) -> Result<Job> {
     {
         bail!("A finalized absolute media path is required");
     }
+    if request.transcript_only && (!request.transcribe || request.keep_video) {
+        bail!("Transcript-only requires transcription and cannot keep video");
+    }
     let recorded_at = DateTime::parse_from_rfc3339(&request.recorded_at)?.naive_local();
     let mut profile = config
         .profile((request.profile != "default").then_some(request.profile.as_str()))?
@@ -190,6 +213,14 @@ fn submit(root: &Path, mut request: Request, config: &Config) -> Result<Job> {
     if !profile.calls_dir.is_absolute() {
         bail!("Native call destination must be absolute");
     }
+    if let Some(enabled) = request.google_drive {
+        profile.drive.enabled = enabled;
+    }
+    if let Some(id) = &request.drive_folder {
+        drive::validate_id(id)?;
+        profile.drive.folder_id = Some(id.clone());
+    }
+    drive::preflight(&profile.drive)?;
     // Native calls always use the canonical call-folder contract.
     profile.mode = Some(Mode::Folder);
     let planned = inbox::plan_at(
@@ -212,6 +243,10 @@ fn submit(root: &Path, mut request: Request, config: &Config) -> Result<Job> {
         recording: planned.recording,
         error: None,
         model: config.transcription.model.clone(),
+        drive: profile.drive.clone(),
+        drive_config: config.google_drive.clone(),
+        drive_url: None,
+        media_removed: false,
     };
     // Persist identity before copying; retries can finish the same immutable source copy.
     save(&directory, &job)?;
@@ -223,7 +258,10 @@ fn run(root: &Path, id: &str) -> Result<Job> {
     let _lock = lock(&directory)?;
     let mut job = load(&directory)?;
     if job.stage == "ready" || job.stage == "stored" {
-        if job.request.keep_video && media::is_video_file(&job.request.recording) {
+        if !job.media_removed
+            && job.request.keep_video
+            && media::is_video_file(&job.request.recording)
+        {
             let folder = job.recording.parent().context("Missing destination")?;
             let extension = job
                 .request
@@ -237,7 +275,9 @@ fn run(root: &Path, id: &str) -> Result<Job> {
                 bail!("Completed job video is missing");
             }
         }
-        if !job.recording.is_file() || (job.stage == "ready" && !job.transcript.is_file()) {
+        if (!job.media_removed && !job.recording.is_file())
+            || (job.stage == "ready" && !job.transcript.is_file())
+        {
             bail!("Completed job artifacts are missing");
         }
         return Ok(job);
@@ -253,6 +293,13 @@ fn run(root: &Path, id: &str) -> Result<Job> {
 }
 
 fn execute(directory: &Path, job: &mut Job) -> Result<()> {
+    let paths = CallPaths::from_recording(&job.recording)?;
+    if job.request.transcript_only
+        && !job.recording.exists()
+        && paths.transcript.with_extension("proof.json").is_file()
+    {
+        return finish(directory, job);
+    }
     let source = directory.join(format!(
         "source.{}",
         job.request
@@ -315,8 +362,7 @@ fn execute(directory: &Path, job: &mut Job) -> Result<()> {
         }
     }
     if !job.request.transcribe {
-        job.stage = "stored".into();
-        return save(directory, job);
+        return finish(directory, job);
     }
     job.stage = "transcribing".into();
     save(directory, job)?;
@@ -328,7 +374,45 @@ fn execute(directory: &Path, job: &mut Job) -> Result<()> {
             force: false,
         },
     )?;
-    job.stage = "ready".into();
+    finish(directory, job)
+}
+
+fn finish(directory: &Path, job: &mut Job) -> Result<()> {
+    job.stage = "finalizing".into();
+    save(directory, job)?;
+    let paths = CallPaths::from_recording(&job.recording)?;
+    if job.request.transcript_only {
+        retention::verify(&job.recording, &paths)?;
+    }
+    job.drive_url = drive::sync(
+        &job.drive_config,
+        &job.drive,
+        &paths,
+        Some(&job.recording),
+        job.request.transcript_only,
+    )?;
+    if job.request.transcript_only {
+        retention::remove_media(&job.recording, &paths)?;
+        let source = directory.join(format!(
+            "source.{}",
+            job.request
+                .recording
+                .extension()
+                .context("Missing extension")?
+                .to_string_lossy()
+        ));
+        if source.exists() {
+            fs::remove_file(source)?;
+            File::open(directory)?.sync_all()?;
+        }
+        job.media_removed = true;
+    }
+    job.stage = if job.request.transcribe {
+        "ready"
+    } else {
+        "stored"
+    }
+    .into();
     save(directory, job)
 }
 
@@ -417,6 +501,9 @@ mod tests {
             name: "Daily".into(),
             transcribe: true,
             keep_video: false,
+            google_drive: None,
+            drive_folder: None,
+            transcript_only: false,
         };
         (root, config, request)
     }

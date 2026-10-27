@@ -70,6 +70,19 @@ pub enum Commands {
 
 #[derive(Debug, Clone, Args, Default)]
 pub struct ProfileArgs {
+    /// Upload the completed call to Google Drive
+    #[arg(long, conflicts_with = "no_google_drive")]
+    pub google_drive: bool,
+    /// Disable the profile's Google Drive default for this run
+    #[arg(long, conflicts_with = "google_drive")]
+    pub no_google_drive: bool,
+    /// Google Drive parent folder ID; also enables upload
+    #[arg(long, conflicts_with = "no_google_drive")]
+    pub drive_folder: Option<String>,
+    /// Delete call media only after a verified transcript; never a profile default
+    #[arg(long)]
+    pub transcript_only: bool,
+
     /// Profile whose values prefill the effective settings
     #[arg(short, long)]
     pub profile: Option<String>,
@@ -121,7 +134,7 @@ pub struct InboxArgs {
     pub copy: bool,
 
     /// Retain the original video alongside extracted record.m4a
-    #[arg(long, conflicts_with = "discard_video")]
+    #[arg(long, conflicts_with_all = ["discard_video", "transcript_only"])]
     pub keep_video: bool,
 
     /// Do not retain the original video, overriding the selected profile

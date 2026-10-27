@@ -21,3 +21,15 @@ model = "whisperkit:openai_whisper-large-v3"
 model = "gpt-5.6-terra"
 reasoning_effort = "medium"
 api_url = "https://api.openai.com/v1/responses"
+
+# Optional personal Google Drive archive. No credentials are needed while disabled.
+[default.drive]
+enabled = false
+# folder_id = "YOUR_FOLDER_ID"
+
+[profiles.dummy.drive]
+enabled = false
+# folder_id = "YOUR_PROJECT_FOLDER_ID"
+
+[google_drive]
+# credentials_file = "/absolute/private/google-drive-oauth.json"

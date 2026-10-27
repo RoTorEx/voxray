@@ -80,6 +80,7 @@ pub fn run(
     let raw_target = paths
         .root
         .join(format!(".voxray-mw-{}.tmp", std::process::id()));
+    let input_digest = crate::retention::checksum(recording)?;
     let started = Instant::now();
     let status = Command::new("mw")
         .arg("transcribe")
@@ -116,7 +117,11 @@ pub fn run(
         started.elapsed().as_millis(),
     )?;
 
+    if crate::retention::checksum(recording)? != input_digest {
+        bail!("Recording changed during transcription; refusing to publish a verification proof");
+    }
     storage::atomic_write(&paths.transcript, canonical.render_text().as_bytes())?;
+    crate::retention::prove(recording, &paths)?;
     logs::event(&format!(
         "transcribe_done recording=\"{}\" input=\"{}\" transcript=\"{}\"",
         recording.display(),

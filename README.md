@@ -147,6 +147,7 @@ fields for named profiles:
 | `date_format` | `strftime` prefix for call names; `""` disables the prefix | `--date-format` |
 | `mode` | Storage layout: `"folder"` or `"file"` | `--mode` |
 | `keep_video` | Retain original video alongside extracted `record.m4a` | `--keep-video` / `--discard-video` |
+| `drive.enabled`, `drive.folder_id` | Google Drive upload default and destination folder ID | `--google-drive` / `--no-google-drive`, `--drive-folder` |
 | `modules` | Analysis modules: `sales`, `interview`, `english`, `communication`; `[]` disables analysis | `--module` (repeatable) |
 
 `inbox_dir` and `calls_dir` are required in every profile. Other built-in
@@ -296,6 +297,19 @@ Each completed stage passes its exact output path to the next stage. Pipelines
 stop on the first error and keep artifacts already published by successful
 stages. Existing derived artifacts are preserved; use the standalone stage with
 `--force` when replacement is intentional.
+
+## Google Drive and transcript-only calls
+
+Use `--google-drive` or `--drive-folder ID` on a working command to archive the
+completed call after its last stage. `[default.drive]` and
+`[profiles.<name>.drive]` define `enabled` and `folder_id`; `--no-google-drive`
+overrides an enabled default. Personal Drive uses user OAuth credentials, not a
+service account. Setup and local processing need no Google credentials.
+
+Explicit `--transcript-only` on inbox-through-transcription or transcribe removes
+call media after an intact transcript and any requested upload are verified.
+It is off by default and cannot be enabled by a profile. Recognition accuracy
+still requires human review. See [Google Drive setup, retention and retry](docs/features/google-drive.md).
 
 ## JSON output
 

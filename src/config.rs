@@ -21,6 +21,23 @@ pub struct Config {
     pub analysis: AnalysisConfig,
     #[serde(default)]
     pub transcription: TranscriptionConfig,
+    #[serde(default)]
+    pub google_drive: GoogleDriveConfig,
+}
+
+/// Credentials stay outside TOML; profiles carry only routing and defaults.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GoogleDriveConfig {
+    pub credentials_file: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DriveOptions {
+    #[serde(default)]
+    pub enabled: bool,
+    pub folder_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +102,8 @@ pub struct Profile {
     /// Whether video sources are retained alongside the canonical audio recording.
     #[serde(default)]
     pub keep_video: bool,
+    #[serde(default)]
+    pub drive: DriveOptions,
     /// Analysis modules enabled for this profile. `feedback` remains a read alias.
     #[serde(default, alias = "feedback")]
     pub modules: Vec<String>,
@@ -106,6 +125,7 @@ fn default_profile() -> Profile {
         date_format: None,
         mode: None,
         keep_video: false,
+        drive: DriveOptions::default(),
         modules: Vec::new(),
     }
 }
@@ -117,6 +137,7 @@ fn dummy_profile() -> Profile {
         date_format: Some("%Y-%m-%d %H-%M".to_string()),
         mode: Some(Mode::Folder),
         keep_video: false,
+        drive: DriveOptions::default(),
         modules: Vec::new(),
     }
 }
@@ -151,6 +172,7 @@ impl Config {
             profiles: IndexMap::from([("dummy".to_string(), dummy_profile())]),
             analysis: AnalysisConfig::default(),
             transcription: TranscriptionConfig::default(),
+            google_drive: GoogleDriveConfig::default(),
         }
     }
 
@@ -268,6 +290,10 @@ fn validate_profile(name: &str, profile: &Profile) -> Result<()> {
     {
         bail!("{name}.date_format is not valid strftime syntax: {format:?}");
     }
+    if let Some(id) = &profile.drive.folder_id {
+        crate::drive::validate_id(id)?;
+    }
+    crate::drive::preflight(&profile.drive).with_context(|| format!("{name}.drive"))?;
     for module in &profile.modules {
         if !matches!(
             module.as_str(),
@@ -375,6 +401,35 @@ reasoning_effort = "medium"
         assert!(!dummy.keep_video);
         assert!(dummy.modules.is_empty());
         assert!(!config.analysis_enabled());
+    }
+
+    #[test]
+    fn drive_routes_are_validated_without_credentials() {
+        let config = parse_and_validate(
+            r#"
+[default]
+inbox_dir = "/tmp"
+calls_dir = "/tmp/calls"
+[default.drive]
+enabled = true
+folder_id = "projectFolder"
+"#,
+        )
+        .unwrap();
+        assert!(config.default.drive.enabled);
+        assert!(config.google_drive.credentials_file.is_none());
+        assert!(
+            parse_and_validate(
+                r#"
+[default]
+inbox_dir = "/tmp"
+calls_dir = "/tmp/calls"
+[default.drive]
+enabled = true
+"#
+            )
+            .is_err()
+        );
     }
 
     #[test]

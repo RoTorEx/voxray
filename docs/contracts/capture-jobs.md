@@ -12,7 +12,7 @@ never prompt. Integration errors before a job is accepted use the error envelope
 and nonzero exit. A failed accepted stage returns the job, including its error
 and artifact paths; its stage is `failed`.
 
-- `voxray profiles`: array of `{id,calls_dir}`, with `default` first followed by
+- `voxray profiles`: array of `{id,calls_dir,google_drive,drive_folder,drive_supported}`, with `default` first followed by
   named profiles in their TOML declaration order. Consumers retain this order.
 - `voxray jobs submit --request /absolute/request.json`: validates and persists
   identity, destination and transcription model, without invoking transcription.
@@ -30,7 +30,10 @@ Request fields (unknown fields rejected):
   "profile": "av eni",
   "name": "Engineering Daily",
   "transcribe": true,
-  "keep_video": false
+  "keep_video": false,
+  "google_drive": false,
+  "drive_folder": "PROJECT_FOLDER_ID",
+  "transcript_only": false
 }
 ```
 
@@ -44,19 +47,19 @@ and immutable after submit. Import-only jobs never invoke MacWhisper; their
 terminal stage is `stored`, and the transcript path is planned but absent.
 The optional `keep_video` choice defaults to false for legacy native jobs.
 For video input, true publishes a synchronized `video.<extension>` copy beside
-canonical audio; false files only audio. Both choices preserve caller originals
-and the private source snapshot. It freezes at submit and survives retries.
+canonical audio; false files only audio. Both choices preserve caller originals. The private source snapshot is retained
+unless transcript_only explicitly requests verified cleanup. It freezes at submit and survives retries.
 Folder mode is deliberate
 for this contract; existing CLI file-mode workflows remain available.
 
 Jobs are private directories in `~/.x-cli-voxray/jobs/UUID/` for the installed
 layout, or beside a development binary's app home. State has `schema_version`,
 `id`, `request`, `stage`, `recording`, `transcript`, `error` and `model`. Stages:
-`queued`, `importing`, `transcribing`, `stored` (audio filed), `ready` (transcript
+`queued`, `importing`, `transcribing`, `finalizing`, `stored` (audio filed), `ready` (transcript
 complete), `failed`.
 
 Submit persists identity before work. Run makes and synchronizes a private
-`source.*` copy before importing; neither source is automatically deleted. The
+`source.*` copy before importing; neither source is deleted by default. The
 caller must retain its finalized recording until explicit deletion. Same UUID
 and identical request are idempotent; a changed request is rejected. Each worker
 holds an OS file lock, released on process death. State publication uses a synced
@@ -78,3 +81,27 @@ recording limit: capture is independent, and saved audio remains for retry.
 missing `mw`, retry after config corruption, idempotence, preservation of corrupt
 job state, source hashes and ffprobe playback metadata. It does not download
 models or make paid API requests.
+
+## Optional Drive and transcript-only extension (Voxray 0.6)
+
+`drive_supported=true` advertises both new options. Older consumers may ignore
+new discovery/job fields. New recorders omit new request fields when discovery
+does not advertise support, preserving compatibility with older CLI versions.
+Omitted google_drive uses the selected profile default; explicit false wins.
+drive_folder overrides the profile folder ID. transcript_only defaults false,
+requires transcribe=true and conflicts with keep_video=true.
+
+Accepted jobs snapshot `drive` and `drive_config` (only credential file path,
+never tokens). `finalizing` uploads after transcription/import. Failed upload
+returns failed with usable local artifacts. Retry reuses the transcript and the
+upload receipt; configuration changes do not reroute it. Completed jobs add
+`drive_url` and `media_removed`. A ready transcript-only job intentionally has
+no recording or private source media; repeat run succeeds without re-import.
+The caller's finalized recording is still untouched by Voxray. Every response
+that authorizes cleanup revalidates the transcript proof; the sandboxed recorder
+need not access the Voxray library directly. Only a recorder
+that owns those files may honor its own explicit transcript-only choice by
+cleaning them up after observing ready plus media_removed=true.
+
+See [Drive and retention](../features/google-drive.md) for credentials, checksum
+proofs, upload recovery and recognition-quality limits.

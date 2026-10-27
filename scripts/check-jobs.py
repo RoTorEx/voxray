@@ -46,7 +46,7 @@ modules = ["communication"]
                                 capture_output=True, text=True, env=environment, timeout=20)
         response = json.loads(result.stdout)
         assert response["status"] == expect, response
-        assert (result.returncode == 0) == (expect == "ok"), result.stderr
+        assert (result.returncode == 0) == (expect in ("ok", "success")), result.stderr
         return response.get("data", response)
 
     assert invoke("profiles")[0]["id"] == "default"  # No token installed.
@@ -140,4 +140,48 @@ with open(output,"w") as file:
     invoke("jobs", "run", "--id", request["recording_id"], expect="error")
     assert job_state.read_text() == "broken state"
     assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
-    print("Jobs contract passed: missing transcriber, SIGKILL during transcription, retry with bad config, idempotence, readable media, corrupt-state preservation")
+    # New choices are frozen in accepted jobs; missing credentials never discard audio.
+    config.write_text(f'''[default]
+inbox_dir = "{root}"
+calls_dir = "{root}/calls"
+modules = []
+[default.drive]
+enabled = false
+folder_id = "projectFolder"
+''')
+    for upload in [False, True]:
+        cleanup_request = dict(request, recording_id=str(uuid.uuid4()), name=f"Transcript only {upload}",
+                               transcript_only=True, google_drive=upload)
+        path.write_text(json.dumps(cleanup_request))
+        cleanup = invoke("jobs", "submit", "--request", str(path))
+        result = invoke("jobs", "run", "--id", cleanup["id"], environment=environment)
+        assert Path(result["transcript"]).is_file()
+        assert Path(result["recording"]).exists() == upload, result
+        assert result["media_removed"] == (not upload)
+        assert result["stage"] == ("failed" if upload else "ready"), result
+        if upload:
+            assert "credentials" in result["error"].lower()
+            assert result["drive"]["folder_id"] == "projectFolder"
+        else:
+            assert invoke("jobs", "run", "--id", cleanup["id"], environment=missing)["stage"] == "ready"
+            assert not list((root / "jobs" / cleanup["id"]).glob("source.*"))
+            # A saved ready flag alone must not authorize recorder cleanup.
+            Path(result["transcript"]).write_text("modified after verification")
+            invoke("jobs", "status", "--id", cleanup["id"], expect="error")
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
+    invalid = dict(request, recording_id=str(uuid.uuid4()), transcribe=False, transcript_only=True)
+    path.write_text(json.dumps(invalid))
+    invoke("jobs", "submit", "--request", str(path), expect="error")
+    # Exercise the public single-stage CLI and its explicit destructive choice.
+    standalone = root / "standalone.wav"
+    shutil.copy2(source, standalone)
+    invoke("transcribe", "--profile", "default", "--recording", str(standalone),
+           "--transcript-only", environment=environment, expect="success")
+    assert not standalone.exists() and (root / "standalone.transcript.txt").is_file()
+    empty = root / "empty.wav"
+    shutil.copy2(source, empty)
+    (root / "empty.transcript.txt").write_text("")
+    invoke("transcribe", "--profile", "default", "--recording", str(empty),
+           "--transcript-only", environment=environment, expect="error")
+    assert empty.is_file()
+    print("Jobs contract passed: interruption/retry, readable media, corruption preservation, explicit transcript-only cleanup, missing-credentials retention, CLI deletion guard")

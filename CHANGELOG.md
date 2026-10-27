@@ -4,6 +4,13 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Add optional personal Google Drive call archives with per-profile defaults,
+  folder overrides, verified uploads and retry receipts. OAuth credentials can
+  be configured later; service accounts are unsupported for personal Drive.
+- Add explicit transcript-only CLI/native jobs with checksum-gated media removal
+  after successful requested stages and uploads; preserve media by default.
+- Advertise native integration capabilities and frozen Drive routing to recorders.
+
 ## [0.5.2] - 2026-10-13
 
 - Preserve TOML profile declaration order in CLI selection and native discovery,

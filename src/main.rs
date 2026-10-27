@@ -15,11 +15,13 @@ mod analysis;
 mod call;
 mod cli;
 mod config;
+mod drive;
 mod inbox;
 mod jobs;
 mod launcher;
 mod logs;
 mod media;
+mod retention;
 mod setup;
 mod setup_config;
 mod storage;
@@ -297,6 +299,12 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
         }
         Commands::Feedback(args) => {
             let supplied_context = args.context.clone();
+            let transcript_only = args.profile.transcript_only;
+            if transcript_only {
+                anyhow::bail!(
+                    "--transcript-only is supported by inbox and transcribe, where the recording can be verified"
+                );
+            }
             let launch = resolve_launch_selection(
                 &config,
                 Stage::Feedback,
@@ -325,7 +333,8 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                 "Replace existing feedback?",
             )?;
             let context = resolve_feedback_context(supplied_context, presentation.interactive)?;
-            run_feedback_step(
+            let paths = call::CallPaths::from_transcript(&transcript)?;
+            let mut outcome = run_feedback_step(
                 &config,
                 &profile_name,
                 &profile,
@@ -336,7 +345,18 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
                     force,
                 },
                 presentation,
-            )
+            )?;
+            let media = find_call_recording(&paths)?;
+            if let Some(url) = drive::sync(
+                &config.google_drive,
+                &profile.drive,
+                &paths,
+                media.as_deref(),
+                false,
+            )? {
+                outcome.artifacts.insert("google_drive".into(), url);
+            }
+            Ok(outcome)
         }
         Commands::Profiles | Commands::Jobs(_) => {
             unreachable!("native contracts handled before workflow")
@@ -362,6 +382,13 @@ fn run_from_inbox(
     presentation: Presentation,
 ) -> Result<CommandOutcome> {
     let supplied_context = args.context.clone();
+    let transcript_only = args.profile.transcript_only;
+    if transcript_only && !plan.includes(Stage::Transcribe) {
+        anyhow::bail!(
+            "--transcript-only requires transcription (--through transcribe or feedback)"
+        );
+    }
+    drive::preflight(&profile.drive)?;
     let source = resolve_recording(args.recording, &profile.inbox_dir, presentation.interactive)?;
     let default_name = source
         .file_stem()
@@ -414,6 +441,7 @@ fn run_from_inbox(
         keep_video,
         presentation.show_effective,
     )?;
+    let stored_recording = recording.recording.clone();
     let mut outcomes = vec![inbox_outcome];
     let mut transcript = None;
 
@@ -445,7 +473,61 @@ fn run_from_inbox(
             presentation,
         )?);
     }
-    Ok(finish_workflow(Stage::Inbox, &plan, outcomes))
+    finalize_call(
+        config,
+        profile,
+        &stored_recording,
+        transcript_only,
+        finish_workflow(Stage::Inbox, &plan, outcomes),
+    )
+}
+
+fn find_call_recording(paths: &call::CallPaths) -> Result<Option<PathBuf>> {
+    let prefix = match paths.mode {
+        Mode::Folder => "record.".to_owned(),
+        Mode::File => format!("{}.record.", paths.name),
+    };
+    Ok(std::fs::read_dir(&paths.root)?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .find(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().starts_with(&prefix))
+                && media::is_media_file(p)
+        }))
+}
+
+fn finalize_call(
+    config: &Config,
+    profile: &Profile,
+    recording: &Path,
+    transcript_only: bool,
+    mut outcome: CommandOutcome,
+) -> Result<CommandOutcome> {
+    let paths = call::CallPaths::from_recording(recording)?;
+    if transcript_only {
+        retention::verify(recording, &paths)?;
+    }
+    if let Some(url) = drive::sync(
+        &config.google_drive,
+        &profile.drive,
+        &paths,
+        Some(recording),
+        transcript_only,
+    )? {
+        outcome.artifacts.insert("google_drive".into(), url);
+    }
+    if transcript_only {
+        retention::remove_media(recording, &paths)?;
+        outcome.artifacts.remove("recording");
+        outcome.artifacts.remove("video");
+        for step in &mut outcome.steps {
+            step.artifacts.remove("recording");
+            step.artifacts.remove("video");
+        }
+        outcome.effective["transcript_only"] = json!(true);
+    }
+    Ok(outcome)
 }
 
 fn should_prompt_video_retention(
@@ -467,11 +549,13 @@ fn run_from_transcribe(
     presentation: Presentation,
 ) -> Result<CommandOutcome> {
     let supplied_context = args.context.clone();
+    let transcript_only = args.profile.transcript_only;
+    drive::preflight(&profile.drive)?;
     let recording =
         resolve_recording(args.recording, &profile.calls_dir, presentation.interactive)?;
     let input = TranscriptionInput {
         media: recording.clone(),
-        recording,
+        recording: recording.clone(),
     };
     let force = prompt_force(
         args.force,
@@ -496,7 +580,13 @@ fn run_from_transcribe(
             presentation,
         )?);
     }
-    Ok(finish_workflow(Stage::Transcribe, &plan, outcomes))
+    finalize_call(
+        config,
+        profile,
+        &recording,
+        transcript_only,
+        finish_workflow(Stage::Transcribe, &plan, outcomes),
+    )
 }
 
 fn run_inbox_step(
@@ -716,6 +806,16 @@ fn effective_profile(
     if let Some(value) = args.mode {
         profile.mode = Some(value.into());
     }
+    if args.google_drive || args.drive_folder.is_some() {
+        profile.drive.enabled = true;
+    }
+    if args.no_google_drive {
+        profile.drive.enabled = false;
+    }
+    if let Some(id) = args.drive_folder {
+        crate::drive::validate_id(&id)?;
+        profile.drive.folder_id = Some(id);
+    }
     if !args.modules.is_empty() {
         profile.modules = args.modules;
     }
@@ -736,6 +836,8 @@ struct ProfilePromptFields {
     mode: bool,
     keep_video: bool,
     modules: bool,
+    google_drive: bool,
+    drive_folder: bool,
 }
 
 impl ProfilePromptFields {
@@ -747,6 +849,10 @@ impl ProfilePromptFields {
             mode: args.mode.is_none(),
             keep_video: !keep_video_overridden,
             modules: args.modules.is_empty(),
+            google_drive: !args.google_drive
+                && !args.no_google_drive
+                && args.drive_folder.is_none(),
+            drive_folder: args.drive_folder.is_none(),
         }
     }
 }
@@ -767,6 +873,11 @@ fn prompt_profile(mut profile: Profile, fields: ProfilePromptFields) -> Result<P
         }
     );
     eprintln!("  keep_video  {}", profile.keep_video);
+    eprintln!("  drive       {}", profile.drive.enabled);
+    eprintln!(
+        "  drive_folder {}",
+        profile.drive.folder_id.as_deref().unwrap_or("(unset)")
+    );
     eprintln!(
         "  modules     {}\n",
         if profile.modules.is_empty() {
@@ -812,6 +923,20 @@ fn prompt_profile(mut profile: Profile, fields: ProfilePromptFields) -> Result<P
             .with_default(profile.keep_video)
             .prompt()
             .map_err(|error| anyhow::anyhow!("Failed to read keep_video: {error}"))?;
+    }
+    if fields.google_drive {
+        profile.drive.enabled = Confirm::new("Upload to Google Drive")
+            .with_default(profile.drive.enabled)
+            .prompt()
+            .map_err(|error| anyhow::anyhow!("Failed to read Google Drive choice: {error}"))?;
+    }
+    if fields.drive_folder && profile.drive.enabled {
+        let id = prompt_text(
+            "Google Drive folder ID",
+            profile.drive.folder_id.as_deref().unwrap_or(""),
+        )?;
+        drive::validate_id(&id)?;
+        profile.drive.folder_id = Some(id);
     }
     if fields.modules {
         profile.modules = split_list(&prompt_text(
@@ -1028,6 +1153,7 @@ fn effective_json(profile_name: &str, profile: &Profile, command: Value) -> Valu
             "date_format": profile.date_format,
             "mode": profile.mode,
             "keep_video": profile.keep_video,
+            "drive": profile.drive,
             "report_language": config::REPORT_LANGUAGE,
             "modules": profile.modules,
         },

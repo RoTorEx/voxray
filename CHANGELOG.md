@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-27
+
 - Add optional personal Google Drive call archives with per-profile defaults,
   folder overrides, verified uploads and retry receipts. OAuth credentials can
   be configured later; service accounts are unsupported for personal Drive.

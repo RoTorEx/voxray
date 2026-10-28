@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-28
+
 - Add a shared Google Drive destination with per-call and per-profile overrides, falling back to My Drive root.
 
 - Expose profile video retention to recorder integrations and verify recording-only Drive archiving without transcription.

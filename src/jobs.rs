@@ -76,7 +76,7 @@ pub fn dispatch(command: &Commands) -> Result<Value> {
                         } else {
                             &config.profiles[&id]
                         };
-                        json!({"id":id,"calls_dir":profile.calls_dir,"google_drive":profile.drive.enabled,"drive_folder":profile.drive.folder_id,"drive_supported":true})
+                        json!({"id":id,"calls_dir":profile.calls_dir,"keep_video":profile.keep_video,"google_drive":profile.drive.enabled,"drive_folder":profile.drive.folder_id,"drive_supported":true})
                     })
                     .collect::<Vec<_>>()
             ))

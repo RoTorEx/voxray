@@ -35,7 +35,7 @@ curl -fsSL https://raw.githubusercontent.com/RoTorEx/voxray/main/scripts/install
 ```
 
 The installer verifies the archive checksum, installs the binary as
-`~/.x-cli-voxray/bin/voxray`, preserves an existing config, and adds the `bin`
+`~/.toolbelt/voxray/bin/voxray`, preserves an existing config, and adds the `bin`
 directory to `PATH` in `~/.zshrc` or `~/.bashrc`. Restart the shell, then verify
 it:
 
@@ -70,18 +70,18 @@ Create a minimal starter configuration interactively:
 voxray setup-config
 ```
 
-Without `~/.x-cli-voxray/config.toml`, working commands refuse to start and
+Without `~/.toolbelt/voxray/config.toml`, working commands refuse to start and
 point to `setup-config`. If a config already exists, Enter keeps it; explicit
 confirmation is required before replacement. Runtime files are:
 
 ```text
-~/.x-cli-voxray/config.toml
-~/.x-cli-voxray/.env
-~/.x-cli-voxray/voxray.log
+~/.toolbelt/voxray/config.toml
+~/.toolbelt/voxray/.env
+~/.toolbelt/voxray/voxray.log
 ```
 
 Save the OpenAI API token interactively. Input is hidden and confirmed; the
-token is stored as `~/.x-cli-voxray/openai-api-key` with mode `0600`:
+token is stored as `~/.toolbelt/voxray/openai-api-key` with mode `0600`:
 
 ```bash
 voxray setup-ai-token

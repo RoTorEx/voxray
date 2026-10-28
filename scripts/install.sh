@@ -3,7 +3,7 @@ set -eu
 
 repo="${VOXRAY_INSTALL_REPO:-RoTorEx/voxray}"
 version="${VOXRAY_VERSION:-latest}"
-install_dir="${VOXRAY_INSTALL_DIR:-$HOME/.x-cli-voxray}"
+install_dir="${VOXRAY_INSTALL_DIR:-$HOME/.toolbelt/voxray}"
 token_file_override="${VOXRAY_GITHUB_TOKEN_FILE:-}"
 archive_path=""
 update_path=1
@@ -97,8 +97,8 @@ if [ "$update_path" -eq 1 ]; then
         */bash) shell_rc="$HOME/.bashrc" ;;
         *) shell_rc="$HOME/.zshrc" ;;
     esac
-    if [ "$install_dir" = "$HOME/.x-cli-voxray" ]; then
-        path_line='export PATH="$HOME/.x-cli-voxray/bin:$PATH"'
+    if [ "$install_dir" = "$HOME/.toolbelt/voxray" ]; then
+        path_line='export PATH="$HOME/.toolbelt/voxray/bin:$PATH"'
     else
         path_line="export PATH=\"$bin_dir:\$PATH\""
     fi

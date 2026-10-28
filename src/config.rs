@@ -330,9 +330,11 @@ mod tests {
     #[test]
     fn installed_binary_uses_parent_of_bin_as_app_home() {
         assert_eq!(
-            app_home_from_executable(std::path::Path::new("/Users/you/.x-cli-voxray/bin/voxray"))
-                .unwrap(),
-            PathBuf::from("/Users/you/.x-cli-voxray")
+            app_home_from_executable(std::path::Path::new(
+                "/Users/you/.toolbelt/voxray/bin/voxray"
+            ))
+            .unwrap(),
+            PathBuf::from("/Users/you/.toolbelt/voxray")
         );
     }
 

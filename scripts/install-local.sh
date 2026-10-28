@@ -24,8 +24,8 @@ case "${SHELL:-}" in
     */bash) profile="$HOME/.bashrc" ;;
     *) profile="$HOME/.zshrc" ;;
 esac
-if [ "$install_dir" = "$HOME/.x-cli-voxray" ]; then
-    line='export PATH="$HOME/.x-cli-voxray/bin:$PATH"'
+if [ "$install_dir" = "$HOME/.toolbelt/voxray" ]; then
+    line='export PATH="$HOME/.toolbelt/voxray/bin:$PATH"'
 else
     line="export PATH=\"$bin_dir:\$PATH\""
 fi

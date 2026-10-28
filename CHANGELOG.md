@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Toolbelt migration: use `~/.toolbelt/<name>` for custom installations and update project-path references where applicable.
+
 ## [0.6.0] - 2026-10-27
 
 - Add optional personal Google Drive call archives with per-profile defaults,

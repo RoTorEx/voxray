@@ -52,7 +52,7 @@ unless transcript_only explicitly requests verified cleanup. It freezes at submi
 Folder mode is deliberate
 for this contract; existing CLI file-mode workflows remain available.
 
-Jobs are private directories in `~/.x-cli-voxray/jobs/UUID/` for the installed
+Jobs are private directories in `~/.toolbelt/voxray/jobs/UUID/` for the installed
 layout, or beside a development binary's app home. State has `schema_version`,
 `id`, `request`, `stage`, `recording`, `transcript`, `error` and `model`. Stages:
 `queued`, `importing`, `transcribing`, `finalizing`, `stored` (audio filed), `ready` (transcript

@@ -149,6 +149,16 @@ modules = []
 enabled = false
 folder_id = "projectFolder"
 ''')
+    # An explicit media-only archive remains valid without invoking transcription.
+    archive_request = dict(request, recording_id=str(uuid.uuid4()), name="Media only archive",
+                           transcribe=False, google_drive=True)
+    path.write_text(json.dumps(archive_request))
+    archive = invoke("jobs", "submit", "--request", str(path))
+    archived = invoke("jobs", "run", "--id", archive["id"], environment=missing)
+    assert archived["stage"] == "failed" and "credentials" in archived["error"].lower(), archived
+    assert Path(archived["recording"]).is_file()
+    assert not Path(archived["transcript"]).exists()
+    assert not archived["media_removed"]
     for upload in [False, True]:
         cleanup_request = dict(request, recording_id=str(uuid.uuid4()), name=f"Transcript only {upload}",
                                transcript_only=True, google_drive=upload)

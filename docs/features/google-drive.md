@@ -62,7 +62,7 @@ authorized to that application, not every pasted folder ID.
 The private JSON file contains `client_id`, `client_secret`, and `refresh_token`.
 Store it with mode 0600 and keep it outside repositories. If credentials_file
 is omitted, Voxray reads `google-drive-oauth.json` from its app home
-(`~/.x-cli-voxray/` for the installed binary). Access tokens are refreshed in
+(`~/.toolbelt/voxray/` for the installed binary). Access tokens are refreshed in
 memory and never saved in jobs, logs, or upload receipts. Each device needs
 credentials authorized for the same personal account. Authentication and real
 Drive uploads must still be tested after credentials are supplied.

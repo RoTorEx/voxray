@@ -32,4 +32,6 @@ enabled = false
 # folder_id = "YOUR_PROJECT_FOLDER_ID"
 
 [google_drive]
+# Shared destination for profiles without their own route; omitted means My Drive root.
+# folder_id = "YOUR_CALLS_FOLDER_ID"
 # credentials_file = "/absolute/private/google-drive-oauth.json"

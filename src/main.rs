@@ -793,6 +793,7 @@ fn effective_profile(
 ) -> Result<(String, Profile)> {
     let base = config.profile((profile_name != "default").then_some(profile_name.as_str()))?;
     let mut profile = base.clone();
+    profile.drive = config.drive_options(base);
     let prompt_fields = ProfilePromptFields::from_args(&args, keep_video_overridden);
     if let Some(value) = args.inbox_dir {
         profile.inbox_dir = value;
@@ -1267,6 +1268,34 @@ mod main_tests {
         assert_eq!(selection.profile, "dummy");
         assert_eq!(selection.through, Some(Stage::Transcribe));
         assert!(selection.edit_profile);
+    }
+
+    #[test]
+    fn cli_drive_destination_override_wins_over_shared_default() {
+        let mut config = Config::starter();
+        config.google_drive.folder_id = Some("callsFolder".into());
+        let (_, inherited) = super::effective_profile(
+            &config,
+            ProfileArgs::default(),
+            "dummy".into(),
+            false,
+            false,
+            false,
+        )
+        .unwrap();
+        assert_eq!(inherited.drive.folder_id.as_deref(), Some("callsFolder"));
+        assert!(!inherited.drive.enabled);
+        let args = ProfileArgs {
+            drive_folder: Some("overrideFolder".into()),
+            ..ProfileArgs::default()
+        };
+        let (_, overridden) =
+            super::effective_profile(&config, args, "dummy".into(), false, false, false).unwrap();
+        assert_eq!(
+            overridden.drive.folder_id.as_deref(),
+            Some("overrideFolder")
+        );
+        assert!(overridden.drive.enabled);
     }
 
     #[test]

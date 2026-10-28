@@ -35,6 +35,8 @@ calls_dir = "{root}/calls"
 mode = "folder"
 date_format = "%Y-%m-%d"
 modules = ["communication"]
+[google_drive]
+folder_id = "callsFolder"
 ''')
     request = {"recording_id": str(uuid.uuid4()), "recording": str(source),
                "recorded_at": "2026-10-09T15:00:00+02:00", "profile": "default", "name": "Daily"}
@@ -49,8 +51,15 @@ modules = ["communication"]
         assert (result.returncode == 0) == (expect in ("ok", "success")), result.stderr
         return response.get("data", response)
 
-    assert invoke("profiles")[0]["id"] == "default"  # No token installed.
+    discovered = invoke("profiles")[0]  # No token installed.
+    assert discovered["id"] == "default" and discovered["drive_folder"] == "callsFolder"
+    assert not discovered["google_drive"]
     accepted = invoke("jobs", "submit", "--request", str(path))
+    assert accepted["drive"]["folder_id"] == "callsFolder"
+    routed = dict(request, recording_id=str(uuid.uuid4()), drive_folder="overrideFolder")
+    path.write_text(json.dumps(routed))
+    assert invoke("jobs", "submit", "--request", str(path))["drive"]["folder_id"] == "overrideFolder"
+    path.write_text(json.dumps(request))
     assert invoke("jobs", "submit", "--request", str(path))["id"] == accepted["id"]
     assert Path(accepted["recording"]).parent.name == "2026-10-09 Daily"
     video = root / "source.mov"

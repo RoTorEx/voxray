@@ -102,8 +102,12 @@ See [contract 1](docs/contracts/capture-jobs.md).
 The operator can collect calls from multiple devices in one personal Google
 Drive folder, route projects to separate folders, and share folders using
 Google Drive. Upload is explicitly optional, defaults off, and runs after the
-last requested successful stage. Profiles define upload defaults and folder IDs;
-one-run overrides and recorder controls win. Credentials use personal user OAuth,
+last requested successful stage. Profiles define upload defaults and optional folder IDs;
+one-run overrides and recorder controls win. Destination resolution uses the
+one-run route, then the profile route, shared `google_drive.folder_id`, and finally
+the authenticated user's My Drive root. A shared Calls folder needs only one
+configuration entry; project routes may point to existing subfolders. Resolving
+a destination never enables upload by itself. Credentials use personal user OAuth,
 not service accounts. No account is connected until separately configured.
 
 The recording, transcription and feedback stages can run separately or as one CLI

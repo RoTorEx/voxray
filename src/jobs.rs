@@ -76,7 +76,7 @@ pub fn dispatch(command: &Commands) -> Result<Value> {
                         } else {
                             &config.profiles[&id]
                         };
-                        json!({"id":id,"calls_dir":profile.calls_dir,"keep_video":profile.keep_video,"google_drive":profile.drive.enabled,"drive_folder":profile.drive.folder_id,"drive_supported":true})
+                        json!({"id":id,"calls_dir":profile.calls_dir,"keep_video":profile.keep_video,"google_drive":profile.drive.enabled,"drive_folder":config.drive_options(profile).folder_id,"drive_supported":true})
                     })
                     .collect::<Vec<_>>()
             ))
@@ -210,6 +210,7 @@ fn submit(root: &Path, mut request: Request, config: &Config) -> Result<Job> {
     let mut profile = config
         .profile((request.profile != "default").then_some(request.profile.as_str()))?
         .clone();
+    profile.drive = config.drive_options(&profile);
     if !profile.calls_dir.is_absolute() {
         bail!("Native call destination must be absolute");
     }

@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Add a shared Google Drive destination with per-call and per-profile overrides, falling back to My Drive root.
+
 - Expose profile video retention to recorder integrations and verify recording-only Drive archiving without transcription.
 
 - Toolbelt migration: use `~/.toolbelt/<name>` for custom installations and update project-path references where applicable.

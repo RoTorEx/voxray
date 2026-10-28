@@ -215,12 +215,7 @@ fn state_path(paths: &CallPaths) -> PathBuf {
 
 pub fn preflight(options: &DriveOptions) -> Result<()> {
     if options.enabled {
-        validate_id(
-            options
-                .folder_id
-                .as_deref()
-                .context("Google Drive is enabled but no folder_id is configured")?,
-        )?;
+        validate_id(options.folder_id.as_deref().unwrap_or("root"))?;
     }
     Ok(())
 }
@@ -250,10 +245,7 @@ fn sync_with(
     recording: Option<&Path>,
     transcript_only: bool,
 ) -> Result<String> {
-    let parent = options
-        .folder_id
-        .as_deref()
-        .context("Missing Drive folder")?;
+    let parent = options.folder_id.as_deref().unwrap_or("root");
     let destination = client
         .metadata(parent)?
         .context("Google Drive parent folder is unavailable")?;
@@ -263,6 +255,14 @@ fn sync_with(
     {
         bail!("Google Drive parent must be a writable folder");
     }
+    // Google returns a concrete ID in parents even when the request used "root".
+    let parent = if parent == "root" {
+        destination["id"]
+            .as_str()
+            .context("Drive returned no root folder ID")?
+    } else {
+        parent
+    };
     let state_path = state_path(paths);
     let lock = OpenOptions::new()
         .create(true)
@@ -435,6 +435,52 @@ mod tests {
         let url = sync_with(&client, &options, &paths, None, true).unwrap();
         assert!(url.ends_with("/folder1"));
         assert_eq!(fs::read(state_path(&paths)).unwrap(), receipt);
+        handle.join().unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn my_drive_root_is_resolved_to_its_concrete_id_before_verifying_children() {
+        let root = std::env::temp_dir().join(format!("voxray-drive-root-{}", std::process::id()));
+        let call = root.join("Call");
+        fs::create_dir_all(&call).unwrap();
+        let paths = CallPaths::from_recording(&call.join("record.wav")).unwrap();
+        let mut destination = parent();
+        destination["id"] = json!("actualRoot");
+        let mut uploaded = folder();
+        uploaded["parents"] = json!(["actualRoot"]);
+        let (base, handle) = server(vec![
+            ("GET /api/files/root?", 200, destination),
+            (
+                "GET /api/files/generateIds?",
+                200,
+                json!({"ids":["folder1"]}),
+            ),
+            ("GET /api/files/folder1?", 404, json!({})),
+            ("POST /api/files ", 200, json!({})),
+            ("GET /api/files/folder1?", 200, uploaded),
+        ]);
+        let client = Client {
+            agent: ureq::AgentBuilder::new()
+                .timeout(Duration::from_secs(5))
+                .build(),
+            token: "test-token".into(),
+            api: format!("{base}/api"),
+            upload: format!("{base}/upload"),
+        };
+        let options = DriveOptions {
+            enabled: true,
+            folder_id: None,
+        };
+        preflight(&options).unwrap();
+        assert!(
+            sync_with(&client, &options, &paths, None, false)
+                .unwrap()
+                .ends_with("/folder1")
+        );
+        let receipt: Receipt =
+            serde_json::from_slice(&fs::read(state_path(&paths)).unwrap()).unwrap();
+        assert_eq!(receipt.parent, "actualRoot");
         handle.join().unwrap();
         fs::remove_dir_all(root).unwrap();
     }

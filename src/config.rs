@@ -30,6 +30,8 @@ pub struct Config {
 #[serde(deny_unknown_fields)]
 pub struct GoogleDriveConfig {
     pub credentials_file: Option<PathBuf>,
+    /// Default parent for profiles without their own route; omitted means My Drive root.
+    pub folder_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -226,6 +228,20 @@ impl Config {
         labels
     }
 
+    pub fn drive_options(&self, profile: &Profile) -> DriveOptions {
+        DriveOptions {
+            enabled: profile.drive.enabled,
+            folder_id: Some(
+                profile
+                    .drive
+                    .folder_id
+                    .clone()
+                    .or_else(|| self.google_drive.folder_id.clone())
+                    .unwrap_or_else(|| "root".into()),
+            ),
+        }
+    }
+
     pub fn analysis_enabled(&self) -> bool {
         !self.default.modules.is_empty()
             || self
@@ -235,6 +251,9 @@ impl Config {
     }
 
     fn validate(&self) -> Result<()> {
+        if let Some(id) = &self.google_drive.folder_id {
+            crate::drive::validate_id(id).context("google_drive.folder_id")?;
+        }
         validate_profile("default", &self.default)?;
         for (name, profile) in &self.profiles {
             if name.trim().is_empty() {
@@ -430,7 +449,45 @@ calls_dir = "/tmp/calls"
 enabled = true
 "#
             )
-            .is_err()
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn drive_destination_falls_back_without_inheriting_upload_or_other_profile_routes() {
+        let mut config = Config::starter();
+        config.default.drive.folder_id = Some("defaultOnly".into());
+        let named = &config.profiles["dummy"];
+        assert_eq!(
+            config.drive_options(named).folder_id.as_deref(),
+            Some("root")
+        );
+        config.google_drive.folder_id = Some("callsFolder".into());
+        let named = &config.profiles["dummy"];
+        assert_eq!(
+            config.drive_options(named).folder_id.as_deref(),
+            Some("callsFolder")
+        );
+        assert!(!config.drive_options(named).enabled);
+        assert_eq!(
+            config.drive_options(&config.default).folder_id.as_deref(),
+            Some("defaultOnly")
+        );
+        config.profiles["dummy"].drive.folder_id = Some("projectFolder".into());
+        assert_eq!(
+            config
+                .drive_options(&config.profiles["dummy"])
+                .folder_id
+                .as_deref(),
+            Some("projectFolder")
+        );
+        config.google_drive.folder_id = Some("https://drive.google.com/folders/bad".into());
+        assert!(
+            config
+                .validate()
+                .unwrap_err()
+                .to_string()
+                .contains("google_drive.folder_id")
         );
     }
 

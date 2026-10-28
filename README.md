@@ -164,6 +164,12 @@ settings stop startup with the file location and a readable explanation.
 Transcription always uses automatic language detection. Feedback accepts an
 optional per-call `--context`; it is never stored in a profile.
 
+`[google_drive].folder_id` sets the shared archive destination (for example the
+ID of `My Drive/Calls`). A profile's `drive.folder_id` overrides it, and
+`--drive-folder` overrides both. Without any destination, uploads use My Drive
+root. The destination setting does not turn on uploads; use the profile's
+`drive.enabled` or the Google Drive checkbox. See [Drive routing and setup](docs/features/google-drive.md).
+
 `[transcription]` options:
 
 | Option | Meaning | Default |

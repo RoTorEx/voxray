@@ -11,19 +11,25 @@ Recordings from different devices remain independent calls, even with equal name
 ```toml
 [default.drive]
 enabled = false
-folder_id = "YOUR_GOOGLE_DRIVE_FOLDER_ID"
 
 [profiles.project.drive]
 enabled = true
 folder_id = "YOUR_PROJECT_FOLDER_ID"
 
 [google_drive]
+folder_id = "YOUR_CALLS_FOLDER_ID"
 credentials_file = "/absolute/private/google-drive-oauth.json"
 ```
 
 Add these tables to existing profiles (which still require inbox_dir and
-calls_dir). Drive defaults are off. Profiles have independent routes; named
-profiles do not inherit the default profile's route. `voxray profiles` advertises
+calls_dir). Drive defaults are off. Destination precedence is: one-run folder
+ID override, selected profile's `drive.folder_id`, shared `google_drive.folder_id`,
+then the authenticated user's My Drive root (`root`). A shared folder such as
+`My Drive/Calls` supplies a common destination without repeating its ID in every
+profile. Set a profile route to an existing subfolder ID for project-specific
+organization. Each call still gets its own folder beneath the selected destination.
+Named profiles do not inherit the default profile's route or upload switch.
+The shared destination does not enable uploading by itself. `voxray profiles` advertises
 the selected defaults to recording applications. Folder IDs come from the
 `/folders/ID` part of a Drive folder URL, not from a local filesystem path.
 

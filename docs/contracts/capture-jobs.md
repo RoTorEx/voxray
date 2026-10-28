@@ -88,7 +88,9 @@ models or make paid API requests.
 new discovery/job fields. New recorders omit new request fields when discovery
 does not advertise support, preserving compatibility with older CLI versions.
 Omitted google_drive uses the selected profile default; explicit false wins.
-drive_folder overrides the profile folder ID. transcript_only defaults false,
+drive_folder overrides the profile folder ID, then shared google_drive.folder_id,
+then My Drive root. Discovery returns the resolved route so recorder defaults
+match CLI defaults. Accepted jobs freeze that route. transcript_only defaults false,
 requires transcribe=true and conflicts with keep_video=true.
 
 Accepted jobs snapshot `drive` and `drive_config` (only credential file path,

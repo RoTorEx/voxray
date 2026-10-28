@@ -44,6 +44,12 @@ when applicable). It never recursively uploads unrelated files, logs, credential
 recovery fragments or private job state. Text artifacts are uploaded as files,
 without Google Docs conversion. An inbox-only run may upload media without text.
 
+An import-only native job or `inbox` without a later stage may archive only the
+recording. This is an intentional option, not an error. In BetterBetterCapture,
+leave Transcript on to archive the processed transcript alongside retained media.
+Transcript only is off for every new capture and removes media only after verified
+transcription and any requested archive; feedback remains a separate CLI choice.
+
 ## Credentials: intentionally separate from the MVP setup
 
 No Google login or network request occurs while upload is disabled. Config and

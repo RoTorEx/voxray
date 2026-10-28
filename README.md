@@ -308,7 +308,8 @@ stages. Existing derived artifacts are preserved; use the standalone stage with
 
 Connect each computer with `voxray google-auth login`, check it with
 `voxray google-auth status`, and remove local access with `voxray google-auth logout`.
-Login opens Google consent in your browser; gcloud is not required.
+After one-time local Desktop client setup, login opens Google consent in your browser;
+gcloud is not required. Client configuration stays on each computer.
 
 
 Use `--google-drive` or `--drive-folder ID` on a working command to archive the

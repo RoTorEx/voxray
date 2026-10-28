@@ -87,14 +87,18 @@ fn read_credentials(path: &Path) -> Result<Option<Credentials>> {
 
 fn desktop_client() -> Result<DesktopClient> {
     let path = config::app_home()?.join("google-drive-client.json");
-    let raw = if path.try_exists()? {
-        fs::read_to_string(path).context("Cannot read Google desktop client configuration")?
-    } else {
-        include_str!(concat!(env!("OUT_DIR"), "/google-client.json")).into()
-    };
+    if let Ok(metadata) = fs::metadata(&path)
+        && (!metadata.is_file() || metadata.permissions().mode() & 0o077 != 0)
+    {
+        bail!("Google Desktop client file must be private (chmod 600)");
+    }
+    let raw = fs::read_to_string(&path).with_context(|| format!(
+        "Google Desktop OAuth client is not configured at {}; save this computer's Desktop client JSON there before login",
+        path.display()
+    ))?;
     let file: DesktopFile = serde_json::from_str(&raw).map_err(|_| {
         anyhow::anyhow!(
-            "This build has no Google Desktop OAuth client; install an official configured build"
+            "Invalid Google Desktop OAuth client JSON; expected an installed Desktop client"
         )
     })?;
     if file.installed.client_id.is_empty() || file.installed.client_secret.is_empty() {

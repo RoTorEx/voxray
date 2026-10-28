@@ -91,22 +91,22 @@ file. google_drive.credentials_file overrides the default app-home path,
 this file atomically after verification. Existing compatible credentials remain
 usable. setup-config and ordinary upload-disabled workflows never log in.
 
-### Desktop client distribution
+### Local Desktop client configuration
 
-The application owner configures a Google Cloud Desktop OAuth client and enables
-Drive API once. Official binaries bundle this application-level client; they
-never bundle a user's refresh token. Configure the repository Actions secret
-VOXRAY_GOOGLE_CLIENT_JSON with the downloaded Desktop client JSON for releases.
-For local builds, build.rs uses that environment variable or the private
-~/.toolbelt/voxray/google-drive-client.json file. Only the Desktop client ID and
-client secret are embedded. Desktop clients are public clients and cannot keep
-these values confidential; PKCE protects the authorization exchange. Never
-commit the client JSON. release-publish refuses an unconfigured build.
+Each computer keeps its own Desktop OAuth client JSON at
+~/.toolbelt/voxray/google-drive-client.json (google-drive-client.json under app
+home for a custom installation). Create/download a Desktop client from the
+Voxray project's Google Auth Platform Clients page, save it privately with mode
+0600, then run google-auth login. Separate device-named Desktop clients make
+machines easy to identify; each device obtains its own user refresh token.
+An agent can perform this one-time local setup without transferring secrets
+through chat. Status and logout do not require the Desktop client file.
 
-A source build without a bundled client may use google-drive-client.json in its
-own app home. Otherwise login gives a configuration error. Status and logout do
-not require a Desktop client. No client or personal credentials are created by
-setup-config.
+Client configuration stays local. Builds and releases never embed it, read it at
+build time, or transfer it to GitHub Actions. No repository secret is required.
+Never commit client JSON or user credentials. A fresh installation needs local
+Desktop client setup before its first browser login. No gcloud is required.
+setup-config does not create either kind of credential.
 
 Personal Drive requires user OAuth: service accounts cannot own personal Drive
 files. The current folder-ID workflow requests https://www.googleapis.com/auth/drive,

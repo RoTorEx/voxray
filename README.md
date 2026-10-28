@@ -383,3 +383,8 @@ pushes and pull requests; ordinary pushes to `main` do not publish a release.
 - [Feedback contract](docs/features/feedback.md)
 - `CHANGELOG.md` — unreleased changes
 - `AGENTS.md` — contributor workflow router
+
+## Local usage logs
+
+See [usage logging](docs/usage-logging.md) for product events, privacy, paths,
+rotation and interpretation limits.

@@ -178,10 +178,11 @@ pub fn run(
     )?;
     call::remove_legacy_files(&paths)?;
 
-    logs::event(&format!(
-        "analysis_done profile={} latency_ms={}",
-        profile_name, document.run.latency_ms
-    ));
+    logs::event(
+        "feedback",
+        "success",
+        serde_json::json!({"latency_ms":document.run.latency_ms}),
+    );
     Ok(AnalysisResult {
         result: "created".to_string(),
         feedback: paths.feedback,
@@ -192,7 +193,7 @@ pub fn run(
 
 fn perform_analysis(
     config: &Config,
-    profile_name: &str,
+    _profile_name: &str,
     modules: &[String],
     context: Option<&str>,
     transcript: &Transcript,
@@ -201,12 +202,11 @@ fn perform_analysis(
     let input = analysis_input(context, modules, metrics, &transcript.segments);
     let started_at = chrono::Utc::now();
     let timer = Instant::now();
-    logs::event(&format!(
-        "analysis_start profile={} model={} modules={}",
-        profile_name,
-        config.analysis.model,
-        modules.join(",")
-    ));
+    logs::event(
+        "feedback",
+        "started",
+        serde_json::json!({"modules":modules.len()}),
+    );
     let (mut output, usage) = call_model(&config.analysis, &input)?;
     validate_and_normalize_output(&mut output, modules)?;
     let finished_at = chrono::Utc::now();

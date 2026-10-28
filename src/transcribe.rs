@@ -122,12 +122,11 @@ pub fn run(
     }
     storage::atomic_write(&paths.transcript, canonical.render_text().as_bytes())?;
     crate::retention::prove(recording, &paths)?;
-    logs::event(&format!(
-        "transcribe_done recording=\"{}\" input=\"{}\" transcript=\"{}\"",
-        recording.display(),
-        transcription_input.display(),
-        paths.transcript.display()
-    ));
+    logs::event(
+        "transcription",
+        "success",
+        serde_json::json!({"stage":"artifact_verified"}),
+    );
     Ok(TranscribeResult {
         result: "created".to_string(),
         transcript: paths.transcript,

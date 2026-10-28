@@ -171,13 +171,11 @@ pub fn run(
             .with_context(|| format!("Failed to remove source {}", source.display()))?;
     }
 
-    logs::event(&format!(
-        "inbox_done source=\"{}\" recording=\"{}\" video={} action={}",
-        source.display(),
-        recording.display(),
-        video.is_some(),
-        if move_source { "move" } else { "copy" }
-    ));
+    logs::event(
+        "recording_import",
+        "success",
+        serde_json::json!({"video":video.is_some(),"mode":if move_source {"move"} else {"copy"}}),
+    );
     Ok(InboxResult {
         recording,
         video,

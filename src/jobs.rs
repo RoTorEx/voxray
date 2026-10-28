@@ -146,6 +146,11 @@ fn save(directory: &Path, job: &Job) -> Result<()> {
     // Single rename: a killed writer leaves either the previous or the new state.
     fs::rename(temp, path)?;
     File::open(directory)?.sync_all()?;
+    crate::logs::event(
+        "capture_job",
+        "observed",
+        json!({"stage":job.stage,"failed":job.error.is_some(),"media_removed":job.media_removed}),
+    );
     Ok(())
 }
 

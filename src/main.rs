@@ -28,6 +28,7 @@ mod storage;
 mod transcribe;
 mod transcript;
 mod update;
+mod usage;
 mod workflow;
 
 use cli::{Cli, Commands, InboxArgs, ProfileArgs, TranscribeArgs};
@@ -78,11 +79,13 @@ fn main() {
     let started = Instant::now();
     let raw_args: Vec<String> = std::env::args().collect();
     let wants_json = raw_args.iter().any(|arg| arg == "--json");
-    logs::command_start(&raw_args);
+    logs::init();
+    let operation = usage::Operation::start("command");
 
     let cli = match Cli::try_parse_from(&raw_args) {
         Ok(cli) => cli,
         Err(error) if error.use_stderr() => {
+            operation.finish("error", json!({"error_code":"invalid_arguments"}));
             if wants_json {
                 println!(
                     "{}",
@@ -94,17 +97,25 @@ fn main() {
             std::process::exit(2);
         }
         Err(error) => {
+            operation.finish("no_op", json!({"mode":"help_or_version"}));
             let _ = error.print();
             return;
         }
     };
     if matches!(&cli.command, Commands::Profiles | Commands::Jobs(_)) {
         match jobs::dispatch(&cli.command) {
-            Ok(data) => println!(
-                "{}",
-                json!({"status":"ok","contract_version":1,"data":data})
-            ),
+            Ok(data) => {
+                operation.finish("success",json!({"mode":"jobs_or_profiles","status":data.get("status").and_then(Value::as_str)}));
+                println!(
+                    "{}",
+                    json!({"status":"ok","contract_version":1,"data":data})
+                );
+            }
             Err(error) => {
+                operation.finish(
+                    "error",
+                    json!({"mode":"jobs_or_profiles","error_code":"job_failed"}),
+                );
                 println!(
                     "{}",
                     json!({"status":"error","contract_version":1,"message":format!("{error:#}")})
@@ -118,12 +129,7 @@ fn main() {
     let result = run(cli);
     match result {
         Ok(outcome) => {
-            logs::info(&format!(
-                "command_end command={} result={} duration={:.3}s",
-                outcome.command,
-                outcome.result,
-                started.elapsed().as_secs_f64()
-            ));
+            operation.finish(if outcome.result=="cancelled" || outcome.result=="canceled" {"canceled"} else {"success"},json!({"mode":outcome.command,"status":outcome.result,"steps":outcome.steps.len(),"artifacts":outcome.artifacts.len(),"elapsed_ms":started.elapsed().as_millis()}));
             if json_output {
                 println!(
                     "{}",
@@ -134,11 +140,10 @@ fn main() {
             }
         }
         Err(error) => {
-            logs::error(&format!(
-                "command_end error=\"{}\" duration={:.3}s",
-                error,
-                started.elapsed().as_secs_f64()
-            ));
+            operation.finish(
+                "error",
+                json!({"error_code":"workflow_failed","elapsed_ms":started.elapsed().as_millis()}),
+            );
             if json_output {
                 let mut payload = json!({
                     "status": "error",

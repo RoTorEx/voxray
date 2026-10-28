@@ -27,7 +27,6 @@ jobs:
       - name: Build release assets
         env:
           DIST_DIR: ${{ runner.temp }}/voxray-dist
-          VOXRAY_GOOGLE_CLIENT_JSON: ${{ secrets.VOXRAY_GOOGLE_CLIENT_JSON }}
         run: make release-publish
 
       - name: Smoke install release asset

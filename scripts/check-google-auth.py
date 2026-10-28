@@ -22,6 +22,7 @@ def main():
         (home / "google-drive-client.json").write_text(json.dumps({"installed": {
             "client_id": "test-desktop-client", "client_secret": "test-desktop-value"
         }}))
+        (home / "google-drive-client.json").chmod(0o600)
         fake_browser = bindir / "open"
         fake_browser.write_text('''#!/usr/bin/env python3
 import os,subprocess,sys

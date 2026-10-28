@@ -78,7 +78,6 @@ release-push:
 
 release-publish: cargo-target-dir dist-dir
 	@set -e; \
-	test -n "$${VOXRAY_GOOGLE_CLIENT_JSON:-}" || test -f "$(HOME)/.toolbelt/voxray/google-drive-client.json" || { echo "ERROR: configure VOXRAY_GOOGLE_CLIENT_JSON with the Desktop OAuth client before publishing" >&2; exit 1; }; \
 	test "$$(uname -s)" = "Darwin" || { echo "ERROR: release artifacts are supported on Apple Silicon macOS only" >&2; exit 1; }; \
 	test "$$(uname -m)" = "arm64" || { echo "ERROR: release artifacts require Apple Silicon, got $$(uname -m)" >&2; exit 1; }; \
 	arch="aarch64"; \

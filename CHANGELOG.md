@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Keep Desktop OAuth client configuration local to each device; never bundle it in builds or GitHub Actions.
 - Add `google-auth login`, `logout`, and `status` with browser PKCE login,
   verified private credential replacement, and device-local logout without gcloud.
 

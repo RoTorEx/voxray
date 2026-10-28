@@ -111,7 +111,8 @@ a destination never enables upload by itself. Credentials use personal user OAut
 not service accounts. No account is connected until separately configured.
 
 `voxray google-auth login` connects each device through browser consent, without
-gcloud or manual user-token transfer. Login uses PKCE and a state-validated loopback
+gcloud or manual user-token transfer. Each device stores its Desktop client
+configuration locally; builds never embed or upload that configuration. Login uses PKCE and a state-validated loopback
 callback, verifies the account and shared destination, then atomically replaces
 private credentials. A declined, failed, or timed-out login preserves prior access.
 `google-auth status` verifies current access; `google-auth logout` removes only

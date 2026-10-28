@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Expose profile video retention to recorder integrations and verify recording-only Drive archiving without transcription.
+
 ## [0.6.1] - 2026-10-28
 
 - Toolbelt migration: use `~/.toolbelt/<name>` for custom installations and update project-path references where applicable.

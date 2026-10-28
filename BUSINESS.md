@@ -106,6 +106,11 @@ last requested successful stage. Profiles define upload defaults and folder IDs;
 one-run overrides and recorder controls win. Credentials use personal user OAuth,
 not service accounts. No account is connected until separately configured.
 
+The recording, transcription and feedback stages can run separately or as one CLI
+pipeline. Drive archiving follows the last requested successful stage; recording-only
+archiving is supported when transcription is explicitly disabled. Native discovery
+exposes the profile Drive route and video-retention default to recording applications.
+
 Transcript-only is always a per-call opt-in, never a configuration default.
 Only a verified saved transcript and successful requested upload allow media
 removal. This verifies file integrity, not speech-recognition completeness.

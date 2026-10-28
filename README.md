@@ -306,6 +306,11 @@ stages. Existing derived artifacts are preserved; use the standalone stage with
 
 ## Google Drive and transcript-only calls
 
+Connect each computer with `voxray google-auth login`, check it with
+`voxray google-auth status`, and remove local access with `voxray google-auth logout`.
+Login opens Google consent in your browser; gcloud is not required.
+
+
 Use `--google-drive` or `--drive-folder ID` on a working command to archive the
 completed call after its last stage. `[default.drive]` and
 `[profiles.<name>.drive]` define `enabled` and `folder_id`; `--no-google-drive`

@@ -110,6 +110,14 @@ configuration entry; project routes may point to existing subfolders. Resolving
 a destination never enables upload by itself. Credentials use personal user OAuth,
 not service accounts. No account is connected until separately configured.
 
+`voxray google-auth login` connects each device through browser consent, without
+gcloud or manual user-token transfer. Login uses PKCE and a state-validated loopback
+callback, verifies the account and shared destination, then atomically replaces
+private credentials. A declined, failed, or timed-out login preserves prior access.
+`google-auth status` verifies current access; `google-auth logout` removes only
+this device's credential file and never revokes access on other devices. Auth
+commands can bootstrap before setup-config; an existing config is always validated.
+
 The recording, transcription and feedback stages can run separately or as one CLI
 pipeline. Drive archiving follows the last requested successful stage; recording-only
 archiving is supported when transcription is explicitly disabled. Native discovery

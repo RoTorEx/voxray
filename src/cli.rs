@@ -30,6 +30,9 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
+    /// Connect this computer to Google Drive through browser OAuth
+    #[command(subcommand)]
+    GoogleAuth(GoogleAuthCommand),
     /// Print the installed CLI version
     Version,
 
@@ -66,6 +69,16 @@ pub enum Commands {
         after_help = "Interactive: voxray feedback\nNon-interactive: voxray feedback --profile sales --transcript /path/call.transcript.txt --non-interactive"
     )]
     Feedback(FeedbackArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum GoogleAuthCommand {
+    /// Open Google consent in the browser and securely save this device's access
+    Login,
+    /// Remove local access without disconnecting other computers
+    Logout,
+    /// Verify the saved account and configured shared Drive destination
+    Status,
 }
 
 #[derive(Debug, Clone, Args, Default)]

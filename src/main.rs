@@ -16,6 +16,7 @@ mod call;
 mod cli;
 mod config;
 mod drive;
+mod google_auth;
 mod inbox;
 mod jobs;
 mod launcher;
@@ -129,7 +130,14 @@ fn main() {
     let result = run(cli);
     match result {
         Ok(outcome) => {
-            operation.finish(if outcome.result=="cancelled" || outcome.result=="canceled" {"canceled"} else {"success"},json!({"mode":outcome.command,"status":outcome.result,"steps":outcome.steps.len(),"artifacts":outcome.artifacts.len(),"elapsed_ms":started.elapsed().as_millis()}));
+            if outcome.command == "google-auth" {
+                operation.finish(
+                    "no_op",
+                    json!({"mode":"google-auth","connected":outcome.effective["connected"]}),
+                );
+            } else {
+                operation.finish(if outcome.result=="cancelled" || outcome.result=="canceled" {"canceled"} else {"success"},json!({"mode":outcome.command,"status":outcome.result,"steps":outcome.steps.len(),"artifacts":outcome.artifacts.len(),"elapsed_ms":started.elapsed().as_millis()}));
+            }
             if json_output {
                 println!(
                     "{}",
@@ -165,6 +173,30 @@ fn main() {
 }
 
 fn run(cli: Cli) -> Result<CommandOutcome> {
+    if let Commands::GoogleAuth(command) = &cli.command {
+        let data = google_auth::run(command, cli.non_interactive)?;
+        return Ok(CommandOutcome {
+            status: "ok",
+            command: "google-auth",
+            result: if data["connected"] == true {
+                format!(
+                    "Connected to Google Drive\nAccount: {}\nFolder: {}",
+                    data["account"].as_str().unwrap_or(""),
+                    data["folder"].as_str().unwrap_or("")
+                )
+            } else {
+                data["message"]
+                    .as_str()
+                    .unwrap_or("Not connected")
+                    .to_string()
+            },
+            effective: data,
+            artifacts: BTreeMap::new(),
+            quick_review: None,
+            through: None,
+            steps: Vec::new(),
+        });
+    }
     if matches!(&cli.command, Commands::Version) {
         return Ok(CommandOutcome {
             status: "ok",
@@ -374,6 +406,9 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
             unreachable!("setup-config returns before configuration is loaded")
         }
         Commands::Version => unreachable!("version returns before configuration is loaded"),
+        Commands::GoogleAuth(_) => {
+            unreachable!("google-auth returns before workflow configuration")
+        }
     }
 }
 

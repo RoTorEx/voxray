@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add `google-auth login`, `logout`, and `status` with browser PKCE login,
+  verified private credential replacement, and device-local logout without gcloud.
+
 - Add bounded, metadata-only local product usage evidence; preserve business and recovery state.
 
 Tracks real product progress.

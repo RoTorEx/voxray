@@ -56,32 +56,70 @@ leave Transcript on to archive the processed transcript alongside retained media
 Transcript only is off for every new capture and removes media only after verified
 transcription and any requested archive; feedback remains a separate CLI choice.
 
-## Credentials: intentionally separate from the MVP setup
+## Browser login on each computer
 
-No Google login or network request occurs while upload is disabled. Config and
-profile discovery work without credentials. No credentials are bundled or
-created by setup-config. Browser authorization is not implemented in this MVP.
+```sh
+voxray google-auth login
+voxray google-auth status
+voxray google-auth logout
+```
 
-Personal Google Drive requires **user OAuth**, not a standalone service account:
-service accounts have no storage quota and cannot own personal Drive files.
-Create a Google Cloud desktop OAuth client, enable Drive API, and obtain user
-consent with offline access. Until a folder picker/authorization flow is added,
-the credential must grant Drive access to the selected existing parent folder;
-a full `https://www.googleapis.com/auth/drive` grant supports arbitrary existing
-folder IDs. A `drive.file` grant alone can access only files/folders explicitly
-authorized to that application, not every pasted folder ID.
+Login opens Google consent in the system browser. Choose the personal account
+that can write to the configured Calls folder and review the requested Drive
+permission. No gcloud installation, service account, or manual token transfer is
+needed. Each device receives its own refresh token. Login verifies the account
+and shared folder (or My Drive root when no shared folder is configured) before
+saving access. Profile-specific destinations are checked when uploading.
 
-The private JSON file contains `client_id`, `client_secret`, and `refresh_token`.
-Store it with mode 0600 and keep it outside repositories. If credentials_file
-is omitted, Voxray reads `google-drive-oauth.json` from its app home
-(`~/.toolbelt/voxray/` for the installed binary). Access tokens are refreshed in
-memory and never saved in jobs, logs, or upload receipts. Each device needs
-credentials authorized for the same personal account. Authentication and real
-Drive uploads must still be tested after credentials are supplied.
+The callback listens only on a random 127.0.0.1 port, uses PKCE S256 and a random
+state, and times out after 180 seconds to bound an abandoned login while allowing
+account selection and consent. Declining consent, partial grants, timeout and
+failed verification preserve existing credentials. Login requires browser
+interaction and rejects --non-interactive. --json remains available; browser
+instructions go to stderr and credentials never appear in output or logs.
+
+Status refreshes access in memory and checks the account and shared destination.
+Missing credentials report not connected; expired/revoked access or inaccessible
+folders return an error. Logout deletes only the configured local credential
+file; it never revokes the Google grant, disconnects other devices, or deletes
+Drive files. Removing the app in Google Account settings can affect all devices.
+Auth commands work before setup-config; an existing configuration is validated.
+
+Credentials use client_id, client_secret and refresh_token in a private 0600 JSON
+file. google_drive.credentials_file overrides the default app-home path,
+~/.toolbelt/voxray/google-drive-oauth.json for an installed binary. Login replaces
+this file atomically after verification. Existing compatible credentials remain
+usable. setup-config and ordinary upload-disabled workflows never log in.
+
+### Desktop client distribution
+
+The application owner configures a Google Cloud Desktop OAuth client and enables
+Drive API once. Official binaries bundle this application-level client; they
+never bundle a user's refresh token. Configure the repository Actions secret
+VOXRAY_GOOGLE_CLIENT_JSON with the downloaded Desktop client JSON for releases.
+For local builds, build.rs uses that environment variable or the private
+~/.toolbelt/voxray/google-drive-client.json file. Only the Desktop client ID and
+client secret are embedded. Desktop clients are public clients and cannot keep
+these values confidential; PKCE protects the authorization exchange. Never
+commit the client JSON. release-publish refuses an unconfigured build.
+
+A source build without a bundled client may use google-drive-client.json in its
+own app home. Otherwise login gives a configuration error. Status and logout do
+not require a Desktop client. No client or personal credentials are created by
+setup-config.
+
+Personal Drive requires user OAuth: service accounts cannot own personal Drive
+files. The current folder-ID workflow requests https://www.googleapis.com/auth/drive,
+which permits reading and changing the entire Drive. A drive.file grant does not
+cover an arbitrary existing folder without a Google Picker authorization flow.
+The user must explicitly review and grant this permission in Google's browser
+consent. For personal long-running use, configure the app appropriately outside
+Testing; Drive refresh tokens in Testing expire after seven days. Public use may
+require Google's verification; personal-use exceptions do not remove consent.
 
 Google references: [service-account limits](https://developers.google.com/workspace/drive/api/guides/about-shareddrives),
-[desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app),
-[file uploads](https://developers.google.com/workspace/drive/api/guides/manage-uploads).
+[desktop OAuth and PKCE](https://developers.google.com/identity/protocols/oauth2/native-app),
+[Testing token lifetime](https://support.google.com/cloud/answer/15549945).
 
 ## Explicit transcript-only retention
 

@@ -1,16 +1,14 @@
 # Project Changelog
 
-## Unreleased
+Tracks real product progress.
+
+## [Unreleased]
 
 - Keep Desktop OAuth client configuration local to each device; never bundle it in builds or GitHub Actions.
 - Add `google-auth login`, `logout`, and `status` with browser PKCE login,
   verified private credential replacement, and device-local logout without gcloud.
 
 - Add bounded, metadata-only local product usage evidence; preserve business and recovery state.
-
-Tracks real product progress.
-
-## [Unreleased]
 
 ## [0.6.2] - 2026-10-28
 

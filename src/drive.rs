@@ -13,6 +13,18 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+mod synchronization;
+pub use synchronization::{Direction, synchronize};
+
+struct CallLock(File);
+impl Drop for CallLock {
+    fn drop(&mut self) {
+        // Release explicitly: concurrently spawned checksum processes can
+        // briefly inherit a descriptor before exec closes it.
+        let _ = self.0.unlock();
+    }
+}
+
 pub fn validate_id(id: &str) -> Result<()> {
     if id.is_empty()
         || !id
@@ -92,6 +104,7 @@ impl Client {
             .set("Authorization", &format!("Bearer {}", self.token))
     }
     fn metadata(&self, id: &str) -> Result<Option<Value>> {
+        validate_id(id)?;
         match self
             .request("GET", &format!("{}/files/{id}", self.api))
             .query(
@@ -100,7 +113,14 @@ impl Client {
             )
             .call()
         {
-            Ok(response) => Ok(Some(response.into_json()?)),
+            Ok(response) => {
+                let etag = response.header("ETag").map(str::to_owned);
+                let mut metadata: Value = response.into_json()?;
+                if let Some(etag) = etag {
+                    metadata["_etag"] = json!(etag);
+                }
+                Ok(Some(metadata))
+            }
             Err(ureq::Error::Status(404, _)) => Ok(None),
             Err(error) => Err(error.into()),
         }
@@ -134,7 +154,13 @@ impl Client {
         }
         Ok(())
     }
-    fn upload_file(&self, id: &str, parent: &str, path: &Path) -> Result<()> {
+    fn upload_file(
+        &self,
+        id: &str,
+        parent: &str,
+        path: &Path,
+        baseline: Option<&str>,
+    ) -> Result<()> {
         let name = path
             .file_name()
             .and_then(|n| n.to_str())
@@ -147,6 +173,11 @@ impl Client {
             if matches_content(value, size, &digest) {
                 return Ok(());
             }
+            if value["md5Checksum"].as_str() != baseline || baseline.is_none() {
+                bail!(
+                    "Drive artifact changed remotely; use voxray sync pull to reconcile it safely"
+                );
+            }
         }
         let url = match existing {
             Some(_) => format!("{}/files/{id}", self.upload),
@@ -157,12 +188,15 @@ impl Client {
         } else {
             json!({"id": id, "name": name, "parents": [parent]})
         };
-        let response = self
+        let mut request = self
             .request(if existing.is_some() { "PATCH" } else { "POST" }, &url)
             .query("uploadType", "resumable")
             .set("X-Upload-Content-Length", &size.to_string())
-            .set("X-Upload-Content-Type", "application/octet-stream")
-            .send_json(metadata)?;
+            .set("X-Upload-Content-Type", "application/octet-stream");
+        if let Some(etag) = existing.as_ref().and_then(|item| item["_etag"].as_str()) {
+            request = request.set("If-Match", etag);
+        }
+        let response = request.send_json(metadata)?;
         let location = response
             .header("Location")
             .context("Drive returned no upload session")?;
@@ -204,6 +238,8 @@ struct Receipt {
     parent: String,
     folder: String,
     files: BTreeMap<String, String>,
+    #[serde(default)]
+    baselines: BTreeMap<String, String>,
 }
 
 fn state_path(paths: &CallPaths) -> PathBuf {
@@ -271,6 +307,7 @@ fn sync_with(
         .mode(0o600)
         .open(state_path.with_extension("lock"))?;
     lock.try_lock().context("This call is already uploading")?;
+    let _lock = CallLock(lock);
     let mut state: Receipt = if state_path.exists() {
         serde_json::from_slice(&fs::read(&state_path)?)
             .context("Drive upload receipt is damaged; refusing to create duplicate uploads")?
@@ -310,12 +347,20 @@ fn sync_with(
             Some(id) => id.clone(),
             None => {
                 let id = client.generate_id()?;
-                state.files.insert(name, id.clone());
+                state.files.insert(name.clone(), id.clone());
                 storage::atomic_write(&state_path, &serde_json::to_vec(&state)?)?;
                 id
             }
         };
-        client.upload_file(&id, &state.folder, &path)?;
+        let local = retention::checksum(&path)?;
+        client.upload_file(
+            &id,
+            &state.folder,
+            &path,
+            state.baselines.get(&name).map(String::as_str),
+        )?;
+        state.baselines.insert(name, local);
+        storage::atomic_write(&state_path, &serde_json::to_vec(&state)?)?;
     }
     Ok(format!(
         "https://drive.google.com/drive/folders/{}",
@@ -434,7 +479,16 @@ mod tests {
         let receipt = fs::read(state_path(&paths)).unwrap();
         let url = sync_with(&client, &options, &paths, None, true).unwrap();
         assert!(url.ends_with("/folder1"));
-        assert_eq!(fs::read(state_path(&paths)).unwrap(), receipt);
+        let before: Receipt = serde_json::from_slice(&receipt).unwrap();
+        let after: Receipt =
+            serde_json::from_slice(&fs::read(state_path(&paths)).unwrap()).unwrap();
+        assert_eq!(before.parent, after.parent);
+        assert_eq!(before.folder, after.folder);
+        assert_eq!(before.files, after.files);
+        assert_eq!(
+            after.baselines["transcript.txt"],
+            retention::checksum(&paths.transcript).unwrap()
+        );
         handle.join().unwrap();
         fs::remove_dir_all(root).unwrap();
     }

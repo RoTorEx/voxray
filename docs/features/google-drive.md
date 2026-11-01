@@ -165,3 +165,60 @@ with the call: deleting them may create a second remote folder. Moving, renaming
 or trashing remote artifacts causes an explicit error. Changing a call's parent
 requires deliberately preserving/removing the old receipt before a second copy.
 Uploads do not delete remote media uploaded by an earlier run.
+
+## Manual synchronization of existing calls
+
+Enable Drive and a destination for the selected profile, then use explicit
+commands. They do not transcribe, generate feedback, delete media or start a
+background watcher. Preview reads metadata and checksums without creating
+folders, receipts or downloads:
+
+```sh
+voxray sync push --profile project --dry-run
+voxray sync push --profile project
+voxray sync pull --profile project --dry-run
+voxray sync pull --profile project
+voxray sync pull --profile project --call "2026-10-09 Daily"
+```
+
+Both folder and file layouts are supported, including calls with transcripts
+but no original recording. Transfer includes recognized recording/video files,
+transcript, feedback, call metadata and legacy recap text. Unrelated files,
+credentials, logs, hidden recording IDs and recovery fragments stay excluded.
+The profile must explicitly enable Drive. No other profile is traversed.
+
+Push uploads additions and local changes. Pull discovers call folders in the
+selected destination and downloads additions and remote changes. Existing
+`.voxray-drive.json` / file-layout receipts and locks are shared with pipeline
+uploads: repeat runs reuse IDs instead of creating another call folder.
+Successful transfers store an MD5 baseline. Older receipts acquire a baseline
+only when local and remote content agree; differing untracked versions are
+conflicts, never presumed safe to overwrite.
+
+Neither direction propagates deletions. Missing previously verified cloud
+objects cause push to stop rather than silently recreating a moved/deleted
+record. Pull leaves local-only files in place. Single-sided changes belonging
+to the other direction are reported as `remote_changed` or `local_changed`.
+Changed names, parents, duplicate cloud names and symbolic-link destinations
+are rejected. Downloads verify size/MD5 before atomic publication; uploads
+recheck content and use a conditional update when Drive provides an ETag.
+Converted native Google documents are not silently exported or substituted for
+plain-text artifacts.
+
+If both sides differ from their last shared baseline, the original local file
+and the cloud file remain unchanged. A checksum-named
+`FILE.conflict-drive-HASH` sibling preserves the downloaded cloud version.
+Repeating the operation reuses the same verified conflict copy. The command
+reports the path and exits with status 1; `--json` keeps the action list and
+`status=conflict`. A conflict preview also exits 1 and creates no copy.
+
+Resolve conflicts deliberately: preserve the local candidate, accept the cloud
+version locally and run pull to establish agreement. Then, if desired, replace
+that agreed file with the reviewed local/merged candidate and push it. The tool
+does not make a content-merge decision for the operator. Pipeline reprocessing
+also refuses to overwrite a remotely changed artifact without reconciliation.
+
+Recorder controls and accepted native-job snapshots still override current
+profile defaults. Reselect a profile in an already-open recorder to apply newly
+configured Drive defaults; changing configuration does not redirect an accepted
+job or force an existing checkbox selection.

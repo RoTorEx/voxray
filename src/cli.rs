@@ -39,6 +39,10 @@ pub enum Commands {
     /// List recording destinations without invoking paid analysis
     Profiles,
 
+    /// Synchronize existing call artifacts with the selected profile's Google Drive folder
+    #[command(subcommand)]
+    Sync(SyncCommand),
+
     /// Durable recording jobs for native capture applications
     #[command(subcommand)]
     Jobs(JobCommand),
@@ -69,6 +73,27 @@ pub enum Commands {
         after_help = "Interactive: voxray feedback\nNon-interactive: voxray feedback --profile sales --transcript /path/call.transcript.txt --non-interactive"
     )]
     Feedback(FeedbackArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SyncCommand {
+    /// Upload new or locally changed call artifacts without deleting cloud files
+    Push(SyncArgs),
+    /// Download cloud changes without deleting local files
+    Pull(SyncArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SyncArgs {
+    /// Explicit profile; its Google Drive integration must be enabled
+    #[arg(short, long)]
+    pub profile: String,
+    /// Show planned changes without writing files or uploading
+    #[arg(long)]
+    pub dry_run: bool,
+    /// Limit synchronization to this exact call name
+    #[arg(long)]
+    pub call: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]

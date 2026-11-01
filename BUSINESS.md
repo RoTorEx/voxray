@@ -129,6 +129,15 @@ Only a verified saved transcript and successful requested upload allow media
 removal. This verifies file integrity, not speech-recognition completeness.
 Voxray never deletes recorder originals; the recorder owns that explicit cleanup
 once its completed native job confirms media removal. Default runs preserve media.
+Manual `sync push` and `sync pull` transfer existing call artifacts for one
+explicitly Drive-enabled profile without invoking transcription or analysis.
+They support both storage layouts and text-only historical calls. Preview is
+read-only; real transfers share pipeline receipts/locks and record content
+baselines. Neither direction propagates deletions. Concurrently edited versions
+are preserved as a local original, unchanged cloud object and deterministic
+cloud-conflict copy, with an actionable report and nonzero exit. An unknown
+baseline never authorizes overwriting differing content. Pipeline uploads must
+also protect remote edits. No continuous watcher or automatic merge is added.
 See [Google Drive and retention](docs/features/google-drive.md).
 
 ## Local product usage evidence

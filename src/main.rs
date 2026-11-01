@@ -135,8 +135,13 @@ fn main() {
                     "no_op",
                     json!({"mode":"google-auth","connected":outcome.effective["connected"]}),
                 );
+            } else if outcome.command == "sync" {
+                let preview = outcome.effective["dry_run"] == true;
+                let count = outcome.effective["actions"].as_array().map_or(0, Vec::len);
+                operation.finish(if preview { "no_op" } else if outcome.status == "conflict" { "error" } else { "success" },
+                    json!({"mode":"sync", "status":outcome.status, "dry_run":preview, "actions":count}));
             } else {
-                operation.finish(if outcome.result=="cancelled" || outcome.result=="canceled" {"canceled"} else {"success"},json!({"mode":outcome.command,"status":outcome.result,"steps":outcome.steps.len(),"artifacts":outcome.artifacts.len(),"elapsed_ms":started.elapsed().as_millis()}));
+                operation.finish(if outcome.result=="cancelled" || outcome.result=="canceled" {"canceled"} else if outcome.status=="conflict" {"error"} else {"success"},json!({"mode":outcome.command,"status":outcome.result,"steps":outcome.steps.len(),"artifacts":outcome.artifacts.len(),"elapsed_ms":started.elapsed().as_millis()}));
             }
             if json_output {
                 println!(
@@ -145,6 +150,9 @@ fn main() {
                 );
             } else {
                 print_human_outcome(&outcome);
+            }
+            if outcome.status == "conflict" {
+                std::process::exit(1);
             }
         }
         Err(error) => {
@@ -268,6 +276,54 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
         });
     }
     let config = Config::load()?;
+
+    if let Commands::Sync(command) = &cli.command {
+        let (direction, args) = match command {
+            cli::SyncCommand::Push(args) => (drive::Direction::Push, args),
+            cli::SyncCommand::Pull(args) => (drive::Direction::Pull, args),
+        };
+        let profile = config.profile(if args.profile == "default" {
+            None
+        } else {
+            Some(&args.profile)
+        })?;
+        let report = drive::synchronize(
+            &config.google_drive,
+            &config.drive_options(profile),
+            profile,
+            direction,
+            args.dry_run,
+            args.call.as_deref(),
+        )?;
+        let conflicts = report
+            .actions
+            .iter()
+            .filter(|a| a.action == "conflict")
+            .count();
+        let details = report
+            .actions
+            .iter()
+            .map(|a| format!("{}: {}/{}", a.action, a.call, a.file))
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Ok(CommandOutcome {
+            status: if conflicts > 0 { "conflict" } else { "ok" },
+            command: "sync",
+            result: format!(
+                "{}{}: {} call(s), {} conflict(s)\n{}",
+                if args.dry_run { "preview " } else { "" },
+                direction.label(),
+                report.calls,
+                conflicts,
+                details
+            ),
+            effective: serde_json::to_value(report)?,
+            artifacts: BTreeMap::new(),
+            quick_review: None,
+            through: None,
+            steps: Vec::new(),
+        });
+    }
 
     let presentation = Presentation {
         interactive: !cli.non_interactive,
@@ -409,6 +465,7 @@ fn run(cli: Cli) -> Result<CommandOutcome> {
         Commands::GoogleAuth(_) => {
             unreachable!("google-auth returns before workflow configuration")
         }
+        Commands::Sync(_) => unreachable!("sync returns before processing workflows"),
     }
 }
 

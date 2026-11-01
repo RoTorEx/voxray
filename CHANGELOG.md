@@ -4,6 +4,11 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Add profile-scoped `sync push/pull` with preview, existing-call and text-only
+  transfers, verified recovery, shared upload receipts, no deletion propagation
+  and preservation of independently edited versions.
+- Protect remotely edited artifacts during subsequent pipeline uploads.
+
 ## [0.6.3] - 2026-10-31
 
 - Keep Desktop OAuth client configuration local to each device; never bundle it in builds or GitHub Actions.

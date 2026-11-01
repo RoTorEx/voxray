@@ -394,3 +394,12 @@ pushes and pull requests; ordinary pushes to `main` do not publish a release.
 
 See [usage logging](docs/usage-logging.md) for product events, privacy, paths,
 rotation and interpretation limits.
+
+## Synchronize existing calls with Google Drive
+
+For a profile with Drive enabled, use `voxray sync push --profile project` or
+`voxray sync pull --profile project`. Add `--dry-run` to preview or `--call NAME`
+to select one call. Commands transfer existing artifacts without paid analysis,
+reuse upload receipts and preserve both versions on conflicts. They do not
+propagate deletions or run a background watcher. See
+[manual synchronization and conflicts](docs/features/google-drive.md#manual-synchronization-of-existing-calls).

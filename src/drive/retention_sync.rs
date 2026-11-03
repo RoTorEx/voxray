@@ -25,7 +25,11 @@ pub(super) fn reconcile(
     if local {
         retention::validate_sync_state(&fs::read(&path)?)?;
     }
-    let files = remote_files(remote, paths, &state.folder)?;
+    let files = if state.folder.is_empty() {
+        std::collections::BTreeMap::new()
+    } else {
+        remote_files(remote, paths, &state.folder)?
+    };
     let cloud = files.get(name);
     if !local && cloud.is_none() && state.files.contains_key(name) {
         bail!("Recorded retention intent is missing; restore it before synchronizing");
@@ -103,7 +107,11 @@ pub(super) fn cleanup(
     dry: bool,
 ) -> Result<Vec<String>> {
     let local = local_files(paths)?;
-    let cloud = remote_files(remote, paths, &state.folder)?;
+    let cloud = if state.folder.is_empty() {
+        std::collections::BTreeMap::new()
+    } else {
+        remote_files(remote, paths, &state.folder)?
+    };
     let media: std::collections::BTreeSet<_> = local
         .keys()
         .chain(cloud.keys())

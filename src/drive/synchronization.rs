@@ -782,6 +782,7 @@ mod tests {
             Ok(self.objects.borrow().get(id).map(|i| i.0.clone()))
         }
         fn children(&self, parent: &str) -> Result<Vec<Value>> {
+            super::super::validate_id(parent)?;
             Ok(self
                 .objects
                 .borrow()

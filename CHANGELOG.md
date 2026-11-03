@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-11-03
+
 - Preserve feedback uploads for calls whose audio has already been removed by
   synchronized Transcript only retention.
 

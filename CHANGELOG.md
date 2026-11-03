@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-03
+
 - Make Transcript only converge locally and in Drive, including older uploaded
   media. Sync a versioned retention intent before cleanup so interrupted work
   resumes safely and stale devices cannot resurrect audio. Preserve transcript

@@ -76,7 +76,7 @@ pub fn dispatch(command: &Commands) -> Result<Value> {
                         } else {
                             &config.profiles[&id]
                         };
-                        json!({"id":id,"calls_dir":profile.calls_dir,"keep_video":profile.keep_video,"google_drive":profile.drive.enabled,"drive_folder":config.drive_options(profile).folder_id,"drive_supported":true})
+                        json!({"id":id,"calls_dir":profile.calls_dir,"keep_video":profile.keep_video,"google_drive":config.sync_google_drive,"drive_path":drive::mirror_path(&profile.calls_dir).ok().map(|p| p.join("/")),"drive_supported":true})
                     })
                     .collect::<Vec<_>>()
             ))
@@ -222,9 +222,8 @@ fn submit(root: &Path, mut request: Request, config: &Config) -> Result<Job> {
     if let Some(enabled) = request.google_drive {
         profile.drive.enabled = enabled;
     }
-    if let Some(id) = &request.drive_folder {
-        drive::validate_id(id)?;
-        profile.drive.folder_id = Some(id.clone());
+    if request.drive_folder.is_some() {
+        bail!("Drive destination follows calls_dir; update the recorder to omit drive_folder");
     }
     drive::preflight(&profile.drive)?;
     // Native calls always use the canonical call-folder contract.

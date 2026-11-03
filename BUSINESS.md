@@ -102,12 +102,13 @@ See [contract 1](docs/contracts/capture-jobs.md).
 The operator can collect calls from multiple devices in one personal Google
 Drive folder, route projects to separate folders, and share folders using
 Google Drive. Upload is explicitly optional, defaults off, and runs after the
-last requested successful stage. Profiles define upload defaults and optional folder IDs;
-one-run overrides and recorder controls win. Destination resolution uses the
-one-run route, then the profile route, shared `google_drive.folder_id`, and finally
-the authenticated user's My Drive root. A shared Calls folder needs only one
-configuration entry; project routes may point to existing subfolders. Resolving
-a destination never enables upload by itself. Credentials use personal user OAuth,
+last requested successful stage. One top-level sync_gogle_drive boolean controls
+all profiles; one-run and recorder booleans may override it. The existing calls_dir
+is the sole route: mirror local names and nesting literally beneath My Drive,
+relative to Documents when inside it, otherwise relative to home or the named
+components of an external absolute path. No configured IDs, extra roots or per-call
+routes are introduced. Duplicate remote names fail rather than selecting arbitrarily.
+Credentials use personal user OAuth,
 not service accounts. No account is connected until separately configured.
 
 `voxray google-auth login` connects each device through browser consent, without
@@ -122,7 +123,7 @@ commands can bootstrap before setup-config; an existing config is always validat
 The recording, transcription and feedback stages can run separately or as one CLI
 pipeline. Drive archiving follows the last requested successful stage; recording-only
 archiving is supported when transcription is explicitly disabled. Native discovery
-exposes the profile Drive route and video-retention default to recording applications.
+exposes the derived mirror path and video-retention default to recording applications.
 
 Transcript-only is always a per-call opt-in, never a configuration default.
 Only a verified saved transcript and successful requested upload allow media
@@ -130,7 +131,7 @@ removal. This verifies file integrity, not speech-recognition completeness.
 Voxray never deletes recorder originals; the recorder owns that explicit cleanup
 once its completed native job confirms media removal. Default runs preserve media.
 Manual `sync push` and `sync pull` transfer existing call artifacts for one
-explicitly Drive-enabled profile without invoking transcription or analysis.
+selected profile with the global switch enabled without invoking transcription or analysis.
 They support both storage layouts and text-only historical calls. Preview is
 read-only; real transfers share pipeline receipts/locks and record content
 baselines. Neither direction propagates deletions. Concurrently edited versions

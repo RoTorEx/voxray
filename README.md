@@ -147,7 +147,7 @@ fields for named profiles:
 | `date_format` | `strftime` prefix for call names; `""` disables the prefix | `--date-format` |
 | `mode` | Storage layout: `"folder"` or `"file"` | `--mode` |
 | `keep_video` | Retain original video alongside extracted `record.m4a` | `--keep-video` / `--discard-video` |
-| `drive.enabled`, `drive.folder_id` | Google Drive upload default and destination folder ID | `--google-drive` / `--no-google-drive`, `--drive-folder` |
+| Top-level `sync_gogle_drive` | Mirror every profile using its existing `calls_dir`; defaults false | `--google-drive` / `--no-google-drive` |
 | `modules` | Analysis modules: `sales`, `interview`, `english`, `communication`; `[]` disables analysis | `--module` (repeatable) |
 
 `inbox_dir` and `calls_dir` are required in every profile. Other built-in
@@ -164,11 +164,11 @@ settings stop startup with the file location and a readable explanation.
 Transcription always uses automatic language detection. Feedback accepts an
 optional per-call `--context`; it is never stored in a profile.
 
-`[google_drive].folder_id` sets the shared archive destination (for example the
-ID of `My Drive/Calls`). A profile's `drive.folder_id` overrides it, and
-`--drive-folder` overrides both. Without any destination, uploads use My Drive
-root. The destination setting does not turn on uploads; use the profile's
-`drive.enabled` or the Google Drive checkbox. See [Drive routing and setup](docs/features/google-drive.md).
+Set top-level `sync_gogle_drive = true` to enable Drive for all profiles.
+The existing `calls_dir` determines the literal mirrored hierarchy; for example,
+`~/Documents/Calls/26-10 Aveni` maps to `My Drive/Calls/26-10 Aveni`.
+No folder IDs or additional route paths are configured. See
+[Drive mirroring and setup](docs/features/google-drive.md).
 
 `[transcription]` options:
 
@@ -312,11 +312,11 @@ After one-time local Desktop client setup, login opens Google consent in your br
 gcloud is not required. Client configuration stays on each computer.
 
 
-Use `--google-drive` or `--drive-folder ID` on a working command to archive the
-completed call after its last stage. `[default.drive]` and
-`[profiles.<name>.drive]` define `enabled` and `folder_id`; `--no-google-drive`
-overrides an enabled default. Personal Drive uses user OAuth credentials, not a
-service account. Setup and local processing need no Google credentials.
+Use `--google-drive` on a working command to archive the completed call after
+its last stage. Top-level `sync_gogle_drive` supplies the default for all profiles;
+`--no-google-drive` disables it for one run. The local `calls_dir` hierarchy is
+mirrored automatically. Personal Drive uses user OAuth, not a service account.
+Setup and local processing need no Google credentials.
 
 Explicit `--transcript-only` on inbox-through-transcription or transcribe removes
 call media after an intact transcript and any requested upload are verified.
@@ -397,7 +397,7 @@ rotation and interpretation limits.
 
 ## Synchronize existing calls with Google Drive
 
-For a profile with Drive enabled, use `voxray sync push --profile project` or
+With sync_gogle_drive enabled, use `voxray sync push --profile project` or
 `voxray sync pull --profile project`. Add `--dry-run` to preview or `--call NAME`
 to select one call. Commands transfer existing artifacts without paid analysis,
 reuse upload receipts and preserve both versions on conflicts. They do not

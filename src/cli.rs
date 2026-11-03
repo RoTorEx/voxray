@@ -114,9 +114,6 @@ pub struct ProfileArgs {
     /// Disable the profile's Google Drive default for this run
     #[arg(long, conflicts_with = "google_drive")]
     pub no_google_drive: bool,
-    /// Google Drive parent folder ID; also enables upload
-    #[arg(long, conflicts_with = "no_google_drive")]
-    pub drive_folder: Option<String>,
     /// Delete call media only after a verified transcript; never a profile default
     #[arg(long)]
     pub transcript_only: bool,

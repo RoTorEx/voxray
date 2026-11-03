@@ -1,48 +1,41 @@
 # Personal Google Drive archive
 
 Voxray uploads a completed call after the last requested stage. Each call gets
-one folder under the configured Google Drive folder. Different devices can use
-the same parent folder or project-specific folders. Uploads do not change sharing:
+one folder under the literal mirror of its configured local calls_dir. Devices
+with the same relative library paths use the same hierarchy. Uploads do not change sharing:
 share the parent in Google Drive; its permissions govern uploaded children.
 Recordings from different devices remain independent calls, even with equal names.
 
-## Configuration and overrides
+## Configuration and mirrored paths
+
+Set one top-level switch before the TOML tables:
 
 ```toml
-[default.drive]
-enabled = false
+sync_gogle_drive = true
 
-[profiles.project.drive]
-enabled = true
-folder_id = "YOUR_PROJECT_FOLDER_ID"
-
-[google_drive]
-folder_id = "YOUR_CALLS_FOLDER_ID"
-credentials_file = "/absolute/private/google-drive-oauth.json"
+[profiles.project]
+inbox_dir = "/Users/you/Documents/Calls Inbox"
+calls_dir = "/Users/you/Documents/Calls/26-10 Aveni"
 ```
 
-Add these tables to existing profiles (which still require inbox_dir and
-calls_dir). Drive defaults are off. Destination precedence is: one-run folder
-ID override, selected profile's `drive.folder_id`, shared `google_drive.folder_id`,
-then the authenticated user's My Drive root (`root`). A shared folder such as
-`My Drive/Calls` supplies a common destination without repeating its ID in every
-profile. Set a profile route to an existing subfolder ID for project-specific
-organization. Each call still gets its own folder beneath the selected destination.
-Named profiles do not inherit the default profile's route or upload switch.
-The shared destination does not enable uploading by itself. `voxray profiles` advertises
-the selected defaults to recording applications. Folder IDs come from the
-`/folders/ID` part of a Drive folder URL, not from a local filesystem path.
+The switch defaults to false and applies to every profile. `sync_google_drive`
+is accepted as a spelling alias. The existing `calls_dir` is the only routing
+source. No Drive ID, extra root, profile route or per-call destination is configured.
+For example, the local directory above maps literally to
+`My Drive/Calls/26-10 Aveni/<call>`. Names, prefixes, punctuation and deeper nesting
+are preserved. Paths below the system Documents directory are relative to that
+directory; other home paths are relative to the user home (for example Desktop).
+Absolute paths outside home retain their named components beneath My Drive.
+Parent traversal is rejected. Existing folders are reused by exact name and parent;
+ambiguous duplicate folder names fail visibly. Preview never creates missing folders.
 
-`--google-drive` enables upload, `--no-google-drive` disables a configured
-default, and `--drive-folder ID` overrides the destination and enables upload.
-These flags apply to inbox, transcribe, and feedback, including pipelines:
-
-```sh
-voxray inbox --profile project --recording /path/call.m4a --name Daily \
-  --through feedback --google-drive --non-interactive
-voxray transcribe --profile project --recording /path/Call/record.m4a \
-  --drive-folder PROJECT_FOLDER_ID --non-interactive
-```
+`--google-drive` and `--no-google-drive` override only the switch for one run.
+The recorder likewise offers a per-call checkbox and a read-only derived path.
+There is no `--drive-folder` or editable ID. Discovery is local and needs no OAuth.
+Accepted jobs freeze the local library path; already accepted legacy jobs retain
+their saved ID route. Old configuration routes must be migrated rather than ignored.
+Credentials remain at the normal private app-home location; an existing optional
+`google_drive.credentials_file` still selects a private credential file, not a route.
 
 Upload includes only recognized call artifacts: recording, optional retained
 video, transcript.txt, feedback.txt and call.json (with their file-mode names
@@ -68,8 +61,8 @@ Login opens Google consent in the system browser. Choose the personal account
 that can write to the configured Calls folder and review the requested Drive
 permission. No gcloud installation, service account, or manual token transfer is
 needed. Each device receives its own refresh token. Login verifies the account
-and shared folder (or My Drive root when no shared folder is configured) before
-saving access. Profile-specific destinations are checked when uploading.
+and writable My Drive root before
+saving access. Mirrored destination folders are checked when uploading.
 
 The callback listens only on a random 127.0.0.1 port, uses PKCE S256 and a random
 state, and times out after 180 seconds to bound an abandoned login while allowing
@@ -78,7 +71,7 @@ failed verification preserve existing credentials. Login requires browser
 interaction and rejects --non-interactive. --json remains available; browser
 instructions go to stderr and credentials never appear in output or logs.
 
-Status refreshes access in memory and checks the account and shared destination.
+Status refreshes access in memory and checks the account and writable My Drive root.
 Missing credentials report not connected; expired/revoked access or inaccessible
 folders return an error. Logout deletes only the configured local credential
 file; it never revokes the Google grant, disconnects other devices, or deletes
@@ -109,7 +102,7 @@ Desktop client setup before its first browser login. No gcloud is required.
 setup-config does not create either kind of credential.
 
 Personal Drive requires user OAuth: service accounts cannot own personal Drive
-files. The current folder-ID workflow requests https://www.googleapis.com/auth/drive,
+files. Literal folder mirroring requests https://www.googleapis.com/auth/drive,
 which permits reading and changing the entire Drive. A drive.file grant does not
 cover an arbitrary existing folder without a Google Picker authorization flow.
 The user must explicitly review and grant this permission in Google's browser
@@ -168,7 +161,7 @@ Uploads do not delete remote media uploaded by an earlier run.
 
 ## Manual synchronization of existing calls
 
-Enable Drive and a destination for the selected profile, then use explicit
+Enable the global sync_gogle_drive switch, then use explicit
 commands. They do not transcribe, generate feedback, delete media or start a
 background watcher. Preview reads metadata and checksums without creating
 folders, receipts or downloads:
@@ -185,7 +178,7 @@ Both folder and file layouts are supported, including calls with transcripts
 but no original recording. Transfer includes recognized recording/video files,
 transcript, feedback, call metadata and legacy recap text. Unrelated files,
 credentials, logs, hidden recording IDs and recovery fragments stay excluded.
-The profile must explicitly enable Drive. No other profile is traversed.
+The global switch must enable Drive. Each command still traverses only its selected profile.
 
 Push uploads additions and local changes. Pull discovers call folders in the
 selected destination and downloads additions and remote changes. Existing
@@ -222,3 +215,21 @@ Recorder controls and accepted native-job snapshots still override current
 profile defaults. Reselect a profile in an already-open recorder to apply newly
 configured Drive defaults; changing configuration does not redirect an accepted
 job or force an existing checkbox selection.
+
+## Migrating an existing ID-based archive
+
+Finish active captures and accepted jobs before changing the installed recorder,
+CLI or local configuration. Set the one top-level sync_gogle_drive switch and
+remove old profile drive tables and google_drive.folder_id. Keep existing local
+calls_dir values unchanged. The recorder and CLI must both use the mirror contract.
+
+Preserve existing Drive folder IDs when correcting names to match the local tree;
+for example rename Aveni to 26-10 Aveni rather than creating a second archive.
+If a previously misrouted call must move, inspect its current parent, move that
+same folder, read back the new parent, then update only its receipt parent while
+preserving file IDs and MD5 baselines. Do not change accepted job snapshots or
+remove receipts to force another upload. Resolve ambiguous duplicates explicitly.
+Run sync push with --dry-run for each profile after migration; existing artifacts
+must agree without upload or conflict. Intentional local transcript-only removal
+can leave verified cloud media present because synchronization does not propagate
+deletions. No cloud file should be deleted as part of routing migration.

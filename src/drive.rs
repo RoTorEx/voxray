@@ -13,6 +13,8 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+mod routing;
+pub use routing::mirror_path;
 mod synchronization;
 pub use synchronization::{Direction, synchronize};
 
@@ -251,7 +253,14 @@ fn state_path(paths: &CallPaths) -> PathBuf {
 
 pub fn preflight(options: &DriveOptions) -> Result<()> {
     if options.enabled {
-        validate_id(options.folder_id.as_deref().unwrap_or("root"))?;
+        if let Some(path) = &options.calls_dir {
+            if options.folder_id.is_some() {
+                bail!("Ambiguous Drive route in saved job");
+            }
+            mirror_path(path)?;
+        } else {
+            validate_id(options.folder_id.as_deref().unwrap_or("root"))?;
+        }
     }
     Ok(())
 }
@@ -271,7 +280,15 @@ pub fn sync(
         retention::validate_text(&paths.transcript)?;
     }
     let client = Client::connect(config)?;
-    sync_with(&client, options, paths, recording, transcript_only).map(Some)
+    let parent = client
+        .destination(options, true)?
+        .context("Drive mirror is unavailable")?;
+    let resolved = DriveOptions {
+        folder_id: Some(parent),
+        calls_dir: None,
+        ..options.clone()
+    };
+    sync_with(&client, &resolved, paths, recording, transcript_only).map(Some)
 }
 
 fn sync_with(
@@ -432,6 +449,22 @@ mod tests {
     }
 
     #[test]
+    fn accepted_legacy_drive_snapshot_keeps_its_destination() {
+        let snapshot: DriveOptions = serde_json::from_value(
+            serde_json::json!({"enabled": true, "folder_id": "acceptedFolder"}),
+        )
+        .unwrap();
+        assert!(snapshot.calls_dir.is_none());
+        assert_eq!(snapshot.folder_id.as_deref(), Some("acceptedFolder"));
+        preflight(&snapshot).unwrap();
+        let ambiguous = DriveOptions {
+            calls_dir: Some("/tmp/calls".into()),
+            ..snapshot
+        };
+        assert!(preflight(&ambiguous).is_err());
+    }
+
+    #[test]
     fn retries_lost_upload_response_using_persisted_ids_and_verifies_content() {
         let root = std::env::temp_dir().join(format!("voxray-drive-test-{}", std::process::id()));
         let call = root.join("Call");
@@ -474,6 +507,7 @@ mod tests {
         let options = DriveOptions {
             enabled: true,
             folder_id: Some("parent".into()),
+            calls_dir: None,
         };
         assert!(sync_with(&client, &options, &paths, None, true).is_err());
         let receipt = fs::read(state_path(&paths)).unwrap();
@@ -525,6 +559,7 @@ mod tests {
         let options = DriveOptions {
             enabled: true,
             folder_id: None,
+            calls_dir: None,
         };
         preflight(&options).unwrap();
         assert!(

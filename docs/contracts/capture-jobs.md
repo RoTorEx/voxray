@@ -87,11 +87,12 @@ models or make paid API requests.
 `drive_supported=true` advertises both new options. Older consumers may ignore
 new discovery/job fields. New recorders omit new request fields when discovery
 does not advertise support, preserving compatibility with older CLI versions.
-Omitted google_drive uses the selected profile default; explicit false wins.
-drive_folder overrides the profile folder ID, then shared google_drive.folder_id,
-then My Drive root. Discovery returns the resolved route so recorder defaults
-match CLI defaults. Accepted jobs freeze that route. transcript_only defaults false,
-requires transcribe=true and conflicts with keep_video=true.
+Omitted google_drive uses the global sync_gogle_drive default; explicit false wins.
+Discovery returns drive_path derived from the selected calls_dir, without a network
+request. New requests omit drive_folder; explicit overrides are rejected. Accepted
+legacy jobs remain readable and retain their frozen ID route. New jobs freeze the
+local library path so later configuration changes cannot redirect them.
+transcript_only defaults false, requires transcribe=true and conflicts with keep_video=true.
 
 Accepted jobs snapshot `drive` and `drive_config` (only credential file path,
 never tokens). `finalizing` uploads after transcription/import. Failed upload

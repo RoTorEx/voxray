@@ -904,15 +904,11 @@ fn effective_profile(
     if let Some(value) = args.mode {
         profile.mode = Some(value.into());
     }
-    if args.google_drive || args.drive_folder.is_some() {
+    if args.google_drive {
         profile.drive.enabled = true;
     }
     if args.no_google_drive {
         profile.drive.enabled = false;
-    }
-    if let Some(id) = args.drive_folder {
-        crate::drive::validate_id(&id)?;
-        profile.drive.folder_id = Some(id);
     }
     if !args.modules.is_empty() {
         profile.modules = args.modules;
@@ -922,6 +918,7 @@ fn effective_profile(
         profile = prompt_profile(profile, prompt_fields)?;
     }
     profile.mode.get_or_insert(Mode::Folder);
+    profile.drive.calls_dir = Some(profile.calls_dir.clone());
     validate_profile(&profile)?;
     Ok((profile_name, profile))
 }
@@ -935,7 +932,6 @@ struct ProfilePromptFields {
     keep_video: bool,
     modules: bool,
     google_drive: bool,
-    drive_folder: bool,
 }
 
 impl ProfilePromptFields {
@@ -947,10 +943,7 @@ impl ProfilePromptFields {
             mode: args.mode.is_none(),
             keep_video: !keep_video_overridden,
             modules: args.modules.is_empty(),
-            google_drive: !args.google_drive
-                && !args.no_google_drive
-                && args.drive_folder.is_none(),
-            drive_folder: args.drive_folder.is_none(),
+            google_drive: !args.google_drive && !args.no_google_drive,
         }
     }
 }
@@ -973,8 +966,8 @@ fn prompt_profile(mut profile: Profile, fields: ProfilePromptFields) -> Result<P
     eprintln!("  keep_video  {}", profile.keep_video);
     eprintln!("  drive       {}", profile.drive.enabled);
     eprintln!(
-        "  drive_folder {}",
-        profile.drive.folder_id.as_deref().unwrap_or("(unset)")
+        "  drive_path  {}",
+        drive::mirror_path(&profile.calls_dir)?.join("/")
     );
     eprintln!(
         "  modules     {}\n",
@@ -1027,14 +1020,6 @@ fn prompt_profile(mut profile: Profile, fields: ProfilePromptFields) -> Result<P
             .with_default(profile.drive.enabled)
             .prompt()
             .map_err(|error| anyhow::anyhow!("Failed to read Google Drive choice: {error}"))?;
-    }
-    if fields.drive_folder && profile.drive.enabled {
-        let id = prompt_text(
-            "Google Drive folder ID",
-            profile.drive.folder_id.as_deref().unwrap_or(""),
-        )?;
-        drive::validate_id(&id)?;
-        profile.drive.folder_id = Some(id);
     }
     if fields.modules {
         profile.modules = split_list(&prompt_text(
@@ -1368,9 +1353,9 @@ mod main_tests {
     }
 
     #[test]
-    fn cli_drive_destination_override_wins_over_shared_default() {
+    fn mirror_tracks_effective_calls_directory_and_one_run_switch() {
         let mut config = Config::starter();
-        config.google_drive.folder_id = Some("callsFolder".into());
+        config.sync_google_drive = true;
         let (_, inherited) = super::effective_profile(
             &config,
             ProfileArgs::default(),
@@ -1380,19 +1365,22 @@ mod main_tests {
             false,
         )
         .unwrap();
-        assert_eq!(inherited.drive.folder_id.as_deref(), Some("callsFolder"));
-        assert!(!inherited.drive.enabled);
+        assert!(inherited.drive.enabled);
+        assert_eq!(
+            inherited.drive.calls_dir.as_ref(),
+            Some(&inherited.calls_dir)
+        );
+        assert!(inherited.drive.folder_id.is_none());
+        let directory = std::path::PathBuf::from("/different/library/nested");
         let args = ProfileArgs {
-            drive_folder: Some("overrideFolder".into()),
+            calls_dir: Some(directory.clone()),
+            no_google_drive: true,
             ..ProfileArgs::default()
         };
         let (_, overridden) =
             super::effective_profile(&config, args, "dummy".into(), false, false, false).unwrap();
-        assert_eq!(
-            overridden.drive.folder_id.as_deref(),
-            Some("overrideFolder")
-        );
-        assert!(overridden.drive.enabled);
+        assert_eq!(overridden.drive.calls_dir.as_ref(), Some(&directory));
+        assert!(!overridden.drive.enabled);
     }
 
     #[test]

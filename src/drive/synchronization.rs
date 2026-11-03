@@ -333,12 +333,64 @@ pub fn synchronize(
     if !options.enabled {
         bail!("Google Drive is disabled for this profile");
     }
+    if fs::symlink_metadata(&profile.calls_dir)
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        bail!("Call root must not be a symbolic link");
+    }
     super::preflight(options)?;
     if let Some(name) = only {
         component(name)?;
     }
     let client = Client::connect(config)?;
-    synchronize_with(&client, options, profile, direction, dry_run, only)
+    let Some(parent) = client.destination(options, !dry_run && direction == Direction::Push)?
+    else {
+        let mut calls = local_calls(profile)?;
+        if let Some(name) = only {
+            if !calls.contains_key(name) {
+                bail!("Selected call was not found: {name}");
+            }
+            calls.retain(|key, _| key == name);
+        }
+        let mut report = Report {
+            direction: direction.label(),
+            dry_run,
+            calls: 0,
+            actions: Vec::new(),
+        };
+        for (name, paths) in calls {
+            if state_path(&paths).exists() {
+                bail!(
+                    "Existing call receipt needs migration to the mirrored destination before synchronization"
+                );
+            }
+            let files = local_files(&paths)?;
+            if files.is_empty() {
+                continue;
+            }
+            report.calls += 1;
+            report.actions.extend(files.into_keys().map(|file| {
+                Action {
+                    call: name.clone(),
+                    file,
+                    action: if direction == Direction::Push {
+                        "upload"
+                    } else {
+                        "local_changed"
+                    }
+                    .into(),
+                    conflict_copy: None,
+                }
+            }));
+        }
+        return Ok(report);
+    };
+    let resolved = DriveOptions {
+        folder_id: Some(parent),
+        calls_dir: None,
+        ..options.clone()
+    };
+    synchronize_with(&client, &resolved, profile, direction, dry_run, only)
 }
 fn synchronize_with(
     remote: &impl Remote,
@@ -736,6 +788,7 @@ mod tests {
                 options: DriveOptions {
                     enabled: true,
                     folder_id: Some("parent".into()),
+                    calls_dir: None,
                 },
             }
         }

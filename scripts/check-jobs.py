@@ -35,8 +35,6 @@ calls_dir = "{root}/calls"
 mode = "folder"
 date_format = "%Y-%m-%d"
 modules = ["communication"]
-[google_drive]
-folder_id = "callsFolder"
 ''')
     request = {"recording_id": str(uuid.uuid4()), "recording": str(source),
                "recorded_at": "2026-10-09T15:00:00+02:00", "profile": "default", "name": "Daily"}
@@ -52,13 +50,13 @@ folder_id = "callsFolder"
         return response.get("data", response)
 
     discovered = invoke("profiles")[0]  # No token installed.
-    assert discovered["id"] == "default" and discovered["drive_folder"] == "callsFolder"
+    assert discovered["id"] == "default" and discovered["drive_path"].endswith("/calls")
     assert not discovered["google_drive"]
     accepted = invoke("jobs", "submit", "--request", str(path))
-    assert accepted["drive"]["folder_id"] == "callsFolder"
+    assert accepted["drive"]["calls_dir"] == str(root / "calls")
     routed = dict(request, recording_id=str(uuid.uuid4()), drive_folder="overrideFolder")
     path.write_text(json.dumps(routed))
-    assert invoke("jobs", "submit", "--request", str(path))["drive"]["folder_id"] == "overrideFolder"
+    invoke("jobs", "submit", "--request", str(path), expect="error")
     path.write_text(json.dumps(request))
     assert invoke("jobs", "submit", "--request", str(path))["id"] == accepted["id"]
     assert Path(accepted["recording"]).parent.name == "2026-10-09 Daily"
@@ -154,9 +152,6 @@ with open(output,"w") as file:
 inbox_dir = "{root}"
 calls_dir = "{root}/calls"
 modules = []
-[default.drive]
-enabled = false
-folder_id = "projectFolder"
 ''')
     # An explicit media-only archive remains valid without invoking transcription.
     archive_request = dict(request, recording_id=str(uuid.uuid4()), name="Media only archive",
@@ -180,7 +175,7 @@ folder_id = "projectFolder"
         assert result["stage"] == ("failed" if upload else "ready"), result
         if upload:
             assert "credentials" in result["error"].lower()
-            assert result["drive"]["folder_id"] == "projectFolder"
+            assert result["drive"]["calls_dir"] == str(root / "calls")
         else:
             assert invoke("jobs", "run", "--id", cleanup["id"], environment=missing)["stage"] == "ready"
             assert not list((root / "jobs" / cleanup["id"]).glob("source.*"))

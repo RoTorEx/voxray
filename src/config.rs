@@ -13,6 +13,8 @@ pub const TRANSCRIPTION_LANGUAGE: &str = "auto";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
+    #[serde(default, rename = "sync_gogle_drive", alias = "sync_google_drive")]
+    pub sync_google_drive: bool,
     #[serde(default = "default_profile")]
     pub default: Profile,
     #[serde(default)]
@@ -30,7 +32,7 @@ pub struct Config {
 #[serde(deny_unknown_fields)]
 pub struct GoogleDriveConfig {
     pub credentials_file: Option<PathBuf>,
-    /// Default parent for profiles without their own route; omitted means My Drive root.
+    /// Read only when deserializing an accepted legacy job, never a config route.
     pub folder_id: Option<String>,
 }
 
@@ -40,6 +42,8 @@ pub struct DriveOptions {
     #[serde(default)]
     pub enabled: bool,
     pub folder_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calls_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -104,7 +108,7 @@ pub struct Profile {
     /// Whether video sources are retained alongside the canonical audio recording.
     #[serde(default)]
     pub keep_video: bool,
-    #[serde(default)]
+    #[serde(skip)]
     pub drive: DriveOptions,
     /// Analysis modules enabled for this profile. `feedback` remains a read alias.
     #[serde(default, alias = "feedback")]
@@ -170,6 +174,7 @@ impl Config {
 
     pub fn starter() -> Self {
         Config {
+            sync_google_drive: false,
             default: default_profile(),
             profiles: IndexMap::from([("dummy".to_string(), dummy_profile())]),
             analysis: AnalysisConfig::default(),
@@ -230,15 +235,9 @@ impl Config {
 
     pub fn drive_options(&self, profile: &Profile) -> DriveOptions {
         DriveOptions {
-            enabled: profile.drive.enabled,
-            folder_id: Some(
-                profile
-                    .drive
-                    .folder_id
-                    .clone()
-                    .or_else(|| self.google_drive.folder_id.clone())
-                    .unwrap_or_else(|| "root".into()),
-            ),
+            enabled: self.sync_google_drive,
+            folder_id: None,
+            calls_dir: Some(profile.calls_dir.clone()),
         }
     }
 
@@ -251,15 +250,25 @@ impl Config {
     }
 
     fn validate(&self) -> Result<()> {
-        if let Some(id) = &self.google_drive.folder_id {
-            crate::drive::validate_id(id).context("google_drive.folder_id")?;
+        if self.google_drive.folder_id.is_some() {
+            bail!(
+                "google_drive.folder_id is no longer configurable; use sync_gogle_drive and the existing calls_dir paths"
+            );
         }
         validate_profile("default", &self.default)?;
+        if self.sync_google_drive {
+            crate::drive::mirror_path(&self.default.calls_dir)
+                .context("default.calls_dir mirror")?;
+        }
         for (name, profile) in &self.profiles {
             if name.trim().is_empty() {
                 bail!("profile name must not be empty");
             }
             validate_profile(&format!("profiles.{name}"), profile)?;
+            if self.sync_google_drive {
+                crate::drive::mirror_path(&profile.calls_dir)
+                    .with_context(|| format!("profiles.{name}.calls_dir mirror"))?;
+            }
         }
         if self.transcription.model.trim().is_empty() || !self.transcription.model.contains(':') {
             bail!(
@@ -425,66 +434,26 @@ reasoning_effort = "medium"
     }
 
     #[test]
-    fn drive_routes_are_validated_without_credentials() {
-        let config = parse_and_validate(
-            r#"
-[default]
-inbox_dir = "/tmp"
-calls_dir = "/tmp/calls"
-[default.drive]
-enabled = true
-folder_id = "projectFolder"
-"#,
-        )
-        .unwrap();
-        assert!(config.default.drive.enabled);
-        assert!(config.google_drive.credentials_file.is_none());
-        assert!(
-            parse_and_validate(
-                r#"
-[default]
-inbox_dir = "/tmp"
-calls_dir = "/tmp/calls"
-[default.drive]
-enabled = true
-"#
-            )
-            .is_ok()
-        );
-    }
-
-    #[test]
-    fn drive_destination_falls_back_without_inheriting_upload_or_other_profile_routes() {
+    fn one_mirror_switch_applies_to_every_profile_without_extra_routes() {
         let mut config = Config::starter();
-        config.default.drive.folder_id = Some("defaultOnly".into());
-        let named = &config.profiles["dummy"];
-        assert_eq!(
-            config.drive_options(named).folder_id.as_deref(),
-            Some("root")
+        assert!(!config.drive_options(&config.default).enabled);
+        config.sync_google_drive = true;
+        let serialized = toml::to_string(&config).unwrap();
+        assert!(serialized.contains("sync_gogle_drive = true"));
+        assert!(!serialized.contains("folder_id"));
+        let decoded = parse_and_validate(&serialized).unwrap();
+        for profile in std::iter::once(&decoded.default).chain(decoded.profiles.values()) {
+            let options = decoded.drive_options(profile);
+            assert!(options.enabled);
+            assert_eq!(options.calls_dir.as_ref(), Some(&profile.calls_dir));
+            assert!(options.folder_id.is_none());
+        }
+        let legacy = format!(
+            "{}\n[google_drive]\nfolder_id = \"old\"\n",
+            serialized.split("[google_drive]").next().unwrap()
         );
-        config.google_drive.folder_id = Some("callsFolder".into());
-        let named = &config.profiles["dummy"];
-        assert_eq!(
-            config.drive_options(named).folder_id.as_deref(),
-            Some("callsFolder")
-        );
-        assert!(!config.drive_options(named).enabled);
-        assert_eq!(
-            config.drive_options(&config.default).folder_id.as_deref(),
-            Some("defaultOnly")
-        );
-        config.profiles["dummy"].drive.folder_id = Some("projectFolder".into());
-        assert_eq!(
-            config
-                .drive_options(&config.profiles["dummy"])
-                .folder_id
-                .as_deref(),
-            Some("projectFolder")
-        );
-        config.google_drive.folder_id = Some("https://drive.google.com/folders/bad".into());
         assert!(
-            config
-                .validate()
+            parse_and_validate(&legacy)
                 .unwrap_err()
                 .to_string()
                 .contains("google_drive.folder_id")

@@ -294,7 +294,7 @@ pub fn sync(
 }
 
 fn sync_with(
-    client: &Client,
+    client: &impl synchronization::Remote,
     options: &DriveOptions,
     paths: &CallPaths,
     recording: Option<&Path>,
@@ -351,8 +351,8 @@ fn sync_with(
         paths.manifest.clone(),
     ];
     let text_only = retention_sync::reconcile(client, paths, &mut state, false)?;
-    if text_only && !transcript_only {
-        bail!("This call has synchronized Transcript only retention; use --transcript-only");
+    if text_only && !transcript_only && recording.is_some_and(Path::exists) {
+        bail!("This call retains text only; synchronize it to remove stale media before retrying");
     }
     if !text_only
         && !transcript_only
@@ -379,7 +379,7 @@ fn sync_with(
             }
         };
         let local = retention::checksum(&path)?;
-        client.upload_file(
+        client.upload(
             &id,
             &state.folder,
             &path,

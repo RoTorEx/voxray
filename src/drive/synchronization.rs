@@ -862,7 +862,7 @@ mod tests {
                 fail_trash: Cell::new(false),
                 scratch: root.clone(),
             };
-            remote.objects.borrow_mut().insert("parent".into(),(json!({"id":"parent","name":"Calls","mimeType":"application/vnd.google-apps.folder"}),Vec::new()));
+            remote.objects.borrow_mut().insert("parent".into(),(json!({"id":"parent","name":"Calls","mimeType":"application/vnd.google-apps.folder","capabilities":{"canAddChildren":true}}),Vec::new()));
             let profile = Profile {
                 inbox_dir: root.join("inbox"),
                 calls_dir: root.join("calls"),
@@ -974,6 +974,21 @@ mod tests {
             assert!(f.run(Direction::Push, false).is_err());
             assert!(audio.exists());
         }
+    }
+
+    #[test]
+    fn feedback_uploads_still_work_after_transcript_only_cleanup() {
+        let f = Fixture::new(Mode::Folder);
+        let p = f.local(b"verified transcript");
+        retention::remember_transcript_only(&p).unwrap();
+        f.run(Direction::Push, false).unwrap();
+        fs::write(&p.feedback, b"reviewed feedback").unwrap();
+        super::super::sync_with(&f.remote, &f.options, &p, None, false).unwrap();
+        let receipt: Receipt = serde_json::from_slice(&fs::read(state_path(&p)).unwrap()).unwrap();
+        assert_eq!(
+            f.remote.objects.borrow()[&receipt.files["feedback.txt"]].1,
+            b"reviewed feedback"
+        );
     }
 
     #[test]

@@ -4,6 +4,9 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Preserve feedback uploads for calls whose audio has already been removed by
+  synchronized Transcript only retention.
+
 ## [0.7.1] - 2026-11-03
 
 - Make Transcript only converge locally and in Drive, including older uploaded

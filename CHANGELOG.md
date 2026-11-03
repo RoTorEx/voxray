@@ -4,6 +4,8 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-03
+
 - Mirror the existing calls_dir hierarchy literally in Google Drive with one
   global sync_gogle_drive switch; remove configured IDs and per-call routing.
   Preserve accepted legacy jobs, exact folder identities and safe sync previews.

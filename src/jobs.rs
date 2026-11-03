@@ -117,8 +117,16 @@ fn directory(root: &Path, id: &str) -> Result<PathBuf> {
     Ok(root.join(id.to_ascii_lowercase()))
 }
 
+// Explicit unlock also releases descriptors briefly inherited by spawned tools.
+struct JobLock(File);
+impl Drop for JobLock {
+    fn drop(&mut self) {
+        let _ = self.0.unlock();
+    }
+}
+
 // Advisory OS locks disappear on process death; status reads need no lock.
-fn lock(directory: &Path) -> Result<File> {
+fn lock(directory: &Path) -> Result<JobLock> {
     fs::create_dir_all(directory)?;
     fs::set_permissions(directory, fs::Permissions::from_mode(0o700))?;
     let file = OpenOptions::new()
@@ -129,7 +137,7 @@ fn lock(directory: &Path) -> Result<File> {
         .open(directory.join("lock"))?;
     file.try_lock()
         .context("Job is already running; read its status instead")?;
-    Ok(file)
+    Ok(JobLock(file))
 }
 
 fn save(directory: &Path, job: &Job) -> Result<()> {

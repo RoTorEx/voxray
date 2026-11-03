@@ -44,13 +44,15 @@ pub struct Report {
     pub actions: Vec<Action>,
 }
 
-trait Remote {
+pub(super) trait Remote {
     fn metadata(&self, id: &str) -> Result<Option<Value>>;
     fn children(&self, parent: &str) -> Result<Vec<Value>>;
     fn generate_id(&self) -> Result<String>;
     fn ensure_folder(&self, id: &str, parent: &str, name: &str) -> Result<()>;
     fn upload(&self, id: &str, parent: &str, path: &Path, baseline: Option<&str>) -> Result<()>;
     fn download(&self, id: &str, output: &mut File) -> Result<()>;
+    fn trash(&self, item: &Value) -> Result<()>;
+    fn read_state(&self, id: &str) -> Result<Vec<u8>>;
 }
 impl Remote for Client {
     fn metadata(&self, id: &str) -> Result<Option<Value>> {
@@ -96,6 +98,44 @@ impl Remote for Client {
     fn upload(&self, id: &str, parent: &str, path: &Path, baseline: Option<&str>) -> Result<()> {
         self.upload_file(id, parent, path, baseline)
     }
+    fn read_state(&self, id: &str) -> Result<Vec<u8>> {
+        use std::io::Read;
+        super::validate_id(id)?;
+        let mut bytes = Vec::new();
+        self.request("GET", &format!("{}/files/{id}", self.api))
+            .query("alt", "media")
+            .call()?
+            .into_reader()
+            .take(4097)
+            .read_to_end(&mut bytes)?;
+        if bytes.len() > 4096 {
+            bail!("Call synchronization state is too large");
+        }
+        Ok(bytes)
+    }
+    fn trash(&self, item: &Value) -> Result<()> {
+        let id = item["id"].as_str().context("Missing media ID")?;
+        super::validate_id(id)?;
+        let fresh = self
+            .metadata(id)?
+            .context("Media disappeared during cleanup")?;
+        if fresh["name"] != item["name"]
+            || fresh["parents"] != item["parents"]
+            || fresh["md5Checksum"] != item["md5Checksum"]
+            || fresh["trashed"] == true
+        {
+            bail!("Cloud media changed during cleanup; preserved");
+        }
+        let mut request = self.request("PATCH", &format!("{}/files/{id}", self.api));
+        if let Some(etag) = fresh["_etag"].as_str() {
+            request = request.set("If-Match", etag);
+        }
+        request.send_json(serde_json::json!({"trashed":true}))?;
+        if !self.metadata(id)?.is_some_and(|v| v["trashed"] == true) {
+            bail!("Cloud media removal verification failed");
+        }
+        Ok(())
+    }
     fn download(&self, id: &str, output: &mut File) -> Result<()> {
         super::validate_id(id)?;
         let response = self
@@ -127,7 +167,14 @@ fn paths(root: &Path, name: &str, mode: Mode) -> Result<CallPaths> {
     };
     CallPaths::from_transcript(&transcript)
 }
-fn artifact(paths: &CallPaths, name: &str) -> bool {
+pub(super) fn artifact(paths: &CallPaths, name: &str) -> bool {
+    if retention::sync_path(paths)
+        .file_name()
+        .and_then(|n| n.to_str())
+        == Some(name)
+    {
+        return true;
+    }
     let short = match paths.mode {
         Mode::Folder => name,
         Mode::File => match name.strip_prefix(&format!("{}.", paths.name)) {
@@ -152,7 +199,7 @@ fn regular(path: &Path) -> Result<bool> {
         Err(error) => Err(error.into()),
     }
 }
-fn local_files(paths: &CallPaths) -> Result<BTreeMap<String, PathBuf>> {
+pub(super) fn local_files(paths: &CallPaths) -> Result<BTreeMap<String, PathBuf>> {
     let mut files = BTreeMap::new();
     if fs::symlink_metadata(&paths.root).is_ok_and(|m| m.file_type().is_symlink()) {
         bail!("Call directory must not be a symbolic link");
@@ -199,6 +246,11 @@ fn local_calls(profile: &Profile) -> Result<BTreeMap<String, CallPaths>> {
             .or_else(|| name.split_once(".record.").map(|(name, _)| name.to_owned()))
             .or_else(|| {
                 name.strip_prefix('.')
+                    .and_then(|n| n.strip_suffix(".sync.json"))
+                    .map(str::to_owned)
+            })
+            .or_else(|| {
+                name.strip_prefix('.')
                     .and_then(|n| n.strip_suffix(".drive.json"))
                     .map(str::to_owned)
             }),
@@ -230,7 +282,7 @@ fn cloud_folders(remote: &impl Remote, parent: &str) -> Result<BTreeMap<String, 
     }
     Ok(result)
 }
-fn remote_files(
+pub(super) fn remote_files(
     remote: &impl Remote,
     paths: &CallPaths,
     folder: &str,
@@ -254,13 +306,13 @@ fn remote_files(
     Ok(files)
 }
 
-struct Download(PathBuf);
+pub(super) struct Download(pub(super) PathBuf);
 impl Drop for Download {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.0);
     }
 }
-fn download(remote: &impl Remote, item: &Value, target: &Path) -> Result<Download> {
+pub(super) fn download(remote: &impl Remote, item: &Value, target: &Path) -> Result<Download> {
     let temp_path = storage::temporary_sibling(target)?;
     let mut output = OpenOptions::new()
         .write(true)
@@ -517,9 +569,18 @@ fn synchronize_with(
         if !dry_run {
             storage::atomic_write(&receipt_path, &serde_json::to_vec(&state)?)?;
         }
+        let text_only = super::retention_sync::reconcile(remote, &paths, &mut state, dry_run)?;
         let selected: std::collections::BTreeSet<_> =
             local.keys().chain(files.keys()).cloned().collect();
         for filename in selected {
+            if retention::sync_path(&paths)
+                .file_name()
+                .and_then(|n| n.to_str())
+                == Some(&filename)
+                || (text_only && crate::media::is_media_file(Path::new(&filename)))
+            {
+                continue;
+            }
             let target = paths.root.join(&filename);
             let local_hash = if regular(&target)? {
                 Some(retention::checksum(&target)?)
@@ -647,6 +708,21 @@ fn synchronize_with(
             }
             report.actions.push(record);
         }
+        if text_only
+            && !report
+                .actions
+                .iter()
+                .any(|a| a.call == name && a.action == "conflict")
+        {
+            for filename in super::retention_sync::cleanup(remote, &paths, &mut state, dry_run)? {
+                report.actions.push(Action {
+                    call: name.clone(),
+                    file: filename,
+                    action: "remove_media".into(),
+                    conflict_copy: None,
+                });
+            }
+        }
     }
     Ok(report)
 }
@@ -673,6 +749,7 @@ mod tests {
         uploads: Cell<usize>,
         downloads: Cell<usize>,
         corrupt: Cell<bool>,
+        fail_trash: Cell<bool>,
         scratch: PathBuf,
     }
     impl Memory {
@@ -744,6 +821,18 @@ mod tests {
             );
             Ok(())
         }
+        fn read_state(&self, id: &str) -> Result<Vec<u8>> {
+            Ok(self.objects.borrow()[id].1.clone())
+        }
+        fn trash(&self, item: &Value) -> Result<()> {
+            if self.fail_trash.replace(false) {
+                bail!("simulated interruption");
+            }
+            self.objects
+                .borrow_mut()
+                .remove(item["id"].as_str().unwrap());
+            Ok(())
+        }
         fn download(&self, id: &str, output: &mut File) -> Result<()> {
             self.downloads.set(self.downloads.get() + 1);
             let objects = self.objects.borrow();
@@ -769,6 +858,7 @@ mod tests {
                 uploads: Cell::new(0),
                 downloads: Cell::new(0),
                 corrupt: Cell::new(false),
+                fail_trash: Cell::new(false),
                 scratch: root.clone(),
             };
             remote.objects.borrow_mut().insert("parent".into(),(json!({"id":"parent","name":"Calls","mimeType":"application/vnd.google-apps.folder"}),Vec::new()));
@@ -829,6 +919,92 @@ mod tests {
             let _ = fs::remove_dir_all(&self.root);
         }
     }
+    #[test]
+    fn transcript_only_is_synced_and_stale_devices_cannot_resurrect_media() {
+        for mode in [Mode::Folder, Mode::File] {
+            let f = Fixture::new(mode);
+            let p = f.local(b"verified transcript");
+            let audio = p.root.join(if mode == Mode::Folder {
+                "record.m4a"
+            } else {
+                "Call.record.m4a"
+            });
+            fs::write(&audio, b"audio").unwrap();
+            f.run(Direction::Push, false).unwrap();
+            retention::remember_transcript_only(&p).unwrap();
+            let uploads = f.remote.uploads.get();
+            let preview = f.run(Direction::Push, true).unwrap();
+            assert!(preview.actions.iter().any(|a| a.action == "remove_media"));
+            assert_eq!(f.remote.uploads.get(), uploads);
+            assert!(audio.exists());
+            f.remote.fail_trash.set(true);
+            assert!(f.run(Direction::Push, false).is_err());
+            assert!(audio.exists());
+            assert!(retention::sync_path(&p).exists());
+            f.run(Direction::Push, false).unwrap();
+            assert!(!audio.exists());
+            // An offline device with stale audio and no local policy learns the intent
+            // even on push, never uploads the media, and completes its cleanup.
+            fs::remove_file(retention::sync_path(&p)).unwrap();
+            fs::write(&audio, b"stale offline copy").unwrap();
+            let uploads = f.remote.uploads.get();
+            f.run(Direction::Push, false).unwrap();
+            assert_eq!(f.remote.uploads.get(), uploads);
+            assert!(!audio.exists());
+            assert!(retention::sync_path(&p).exists());
+            // A fresh device downloads text + policy and cannot recover removed media.
+            fs::remove_file(&p.transcript).unwrap();
+            fs::remove_file(retention::sync_path(&p)).unwrap();
+            fs::remove_file(state_path(&p)).unwrap();
+            f.run(Direction::Pull, false).unwrap();
+            assert_eq!(fs::read(&p.transcript).unwrap(), b"verified transcript");
+            assert!(retention::sync_path(&p).exists());
+            assert!(!audio.exists());
+            let receipt: Receipt =
+                serde_json::from_slice(&fs::read(state_path(&p)).unwrap()).unwrap();
+            let marker = retention::sync_path(&p);
+            let marker_name = marker.file_name().unwrap().to_str().unwrap();
+            f.remote
+                .objects
+                .borrow_mut()
+                .remove(&receipt.files[marker_name]);
+            fs::remove_file(marker).unwrap();
+            fs::write(&audio, b"stale copy").unwrap();
+            assert!(f.run(Direction::Push, false).is_err());
+            assert!(audio.exists());
+        }
+    }
+
+    #[test]
+    fn transcript_conflict_and_unsupported_state_preserve_media() {
+        let f = Fixture::new(Mode::Folder);
+        let p = f.local(b"original text");
+        let audio = p.root.join("record.m4a");
+        fs::write(&audio, b"audio").unwrap();
+        f.run(Direction::Push, false).unwrap();
+        let state: Receipt = serde_json::from_slice(&fs::read(state_path(&p)).unwrap()).unwrap();
+        f.remote
+            .change(&state.files["transcript.txt"], b"cloud edit");
+        fs::write(&p.transcript, b"local edit").unwrap();
+        retention::remember_transcript_only(&p).unwrap();
+        let report = f.run(Direction::Push, false).unwrap();
+        assert!(report.actions.iter().any(|a| a.action == "conflict"));
+        assert!(audio.exists());
+        assert!(
+            f.remote
+                .metadata(&state.files["record.m4a"])
+                .unwrap()
+                .is_some()
+        );
+        fs::write(
+            retention::sync_path(&p),
+            br#"{"version":999,"retention":"transcript_only"}"#,
+        )
+        .unwrap();
+        assert!(f.run(Direction::Push, false).is_err());
+        assert!(audio.exists());
+    }
+
     #[test]
     fn push_is_incremental_and_does_not_upload_unrelated_files() {
         let f = Fixture::new(Mode::Folder);

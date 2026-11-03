@@ -12,6 +12,41 @@ struct Proof {
     transcript_md5: String,
 }
 
+/// Synced, monotonic per-call retention intent; missing files never imply deletion.
+const TRANSCRIPT_ONLY_STATE: &[u8] = b"{\"version\":1,\"retention\":\"transcript_only\"}";
+
+pub fn sync_path(paths: &CallPaths) -> PathBuf {
+    paths.root.join(match paths.mode {
+        crate::config::Mode::Folder => ".voxray-sync.json".to_owned(),
+        crate::config::Mode::File => format!(".{}.sync.json", paths.name),
+    })
+}
+
+pub fn validate_sync_state(bytes: &[u8]) -> Result<()> {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct State {
+        version: u32,
+        retention: String,
+    }
+    let state: State =
+        serde_json::from_slice(bytes).context("Invalid call synchronization state")?;
+    if state.version != 1 || state.retention != "transcript_only" {
+        bail!("Unsupported call synchronization state; update Voxray before synchronizing");
+    }
+    Ok(())
+}
+
+pub fn remember_transcript_only(paths: &CallPaths) -> Result<()> {
+    let path = sync_path(paths);
+    if path.exists() {
+        validate_sync_state(&fs::read(&path)?)?;
+    }
+    storage::atomic_write(&path, TRANSCRIPT_ONLY_STATE)?;
+    File::open(&paths.root)?.sync_all()?;
+    Ok(())
+}
+
 pub fn checksum(path: &Path) -> Result<String> {
     let output = Command::new("/sbin/md5")
         .arg("-q")
@@ -67,6 +102,7 @@ pub fn verify(recording: &Path, paths: &CallPaths) -> Result<()> {
 /// Only the supplied recording and recognized call video siblings can be removed.
 pub fn remove_media(recording: &Path, paths: &CallPaths) -> Result<()> {
     verify(recording, paths)?;
+    remember_transcript_only(paths)?;
     for path in media_paths(recording, paths)? {
         fs::remove_file(path)?;
     }

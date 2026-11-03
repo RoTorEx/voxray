@@ -126,6 +126,8 @@ archiving is supported when transcription is explicitly disabled. Native discove
 exposes the derived mirror path and video-retention default to recording applications.
 
 Transcript-only is always a per-call opt-in, never a configuration default.
+It means text-only retention everywhere, including media uploaded by earlier runs.
+A synced .voxray-sync.json intent prevents stale devices from restoring media.
 Only a verified saved transcript and successful requested upload allow media
 removal. This verifies file integrity, not speech-recognition completeness.
 Voxray never deletes recorder originals; the recorder owns that explicit cleanup
@@ -134,7 +136,10 @@ Manual `sync push` and `sync pull` transfer existing call artifacts for one
 selected profile with the global switch enabled without invoking transcription or analysis.
 They support both storage layouts and text-only historical calls. Preview is
 read-only; real transfers share pipeline receipts/locks and record content
-baselines. Neither direction propagates deletions. Concurrently edited versions
+baselines. Neither direction infers deletions from missing files. Explicit Transcript only
+intent is the exception: a versioned per-call sync state is mirrored to every
+device and removes recognized call media locally and from active Drive storage
+after transcript integrity and synchronization checks. Concurrently edited versions
 are preserved as a local original, unchanged cloud object and deterministic
 cloud-conflict copy, with an actionable report and nonzero exit. An unknown
 baseline never authorizes overwriting differing content. Pipeline uploads must

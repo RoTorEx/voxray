@@ -4,6 +4,13 @@ Tracks real product progress.
 
 ## [Unreleased]
 
+- Make Transcript only converge locally and in Drive, including older uploaded
+  media. Sync a versioned retention intent before cleanup so interrupted work
+  resumes safely and stale devices cannot resurrect audio. Preserve transcript
+  conflicts, changed media, ordinary files and existing checksum receipts.
+- Explicitly release native job locks when tools inherit a descriptor briefly,
+  allowing immediate retries after a worker finishes.
+
 ## [0.7.0] - 2026-11-03
 
 - Mirror the existing calls_dir hierarchy literally in Google Drive with one

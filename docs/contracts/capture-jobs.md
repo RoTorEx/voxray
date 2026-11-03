@@ -108,3 +108,13 @@ cleaning them up after observing ready plus media_removed=true.
 
 See [Drive and retention](../features/google-drive.md) for credentials, checksum
 proofs, upload recovery and recognition-quality limits.
+
+### Transcript-only retention convergence
+
+Transcript only means no retained call media locally or in active Drive storage,
+including media uploaded before the choice. Voxray persists a versioned, synced
+retention intent before removal. A completed upload and matching cloud transcript
+are required before cloud media is moved to Trash. Retried sync operations apply
+that intent in both directions without restoring media. Other devices must run
+a client supporting this state contract. Recorder-owned source/recovery cleanup
+still requires ready plus media_removed=true; failures do not authorize cleanup.

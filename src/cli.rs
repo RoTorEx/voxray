@@ -77,9 +77,9 @@ pub enum Commands {
 
 #[derive(Debug, Subcommand)]
 pub enum SyncCommand {
-    /// Upload new or locally changed call artifacts without deleting cloud files
+    /// Upload call changes and apply explicit transcript-only retention
     Push(SyncArgs),
-    /// Download cloud changes without deleting local files
+    /// Download call changes and apply explicit transcript-only retention
     Pull(SyncArgs),
 }
 

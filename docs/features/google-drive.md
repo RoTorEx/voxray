@@ -118,7 +118,9 @@ Google references: [service-account limits](https://developers.google.com/worksp
 
 `--transcript-only` is available on inbox (with --through transcribe/feedback)
 and transcribe. It is deliberately never a profile default. It retains text
-artifacts, including any feedback/metadata, and excludes media from upload.
+artifacts, including any feedback/metadata, and excludes media from upload. It also removes previously uploaded call media
+from active Drive storage (moves it to Drive Trash), after verifying the cloud
+transcript. Local and cloud retention must agree.
 It conflicts with --keep-video. Media is removed only after all requested
 stages and any requested upload succeed. With --copy, inbox preserves the
 external source; standalone transcribe deletes the explicitly selected recording.
@@ -157,7 +159,8 @@ An OS file lock prevents concurrent upload of the same local call. Keep receipts
 with the call: deleting them may create a second remote folder. Moving, renaming
 or trashing remote artifacts causes an explicit error. Changing a call's parent
 requires deliberately preserving/removing the old receipt before a second copy.
-Uploads do not delete remote media uploaded by an earlier run.
+Explicit Transcript only removes remote media uploaded by an earlier run;
+ordinary uploads preserve it.
 
 ## Manual synchronization of existing calls
 
@@ -188,7 +191,26 @@ Successful transfers store an MD5 baseline. Older receipts acquire a baseline
 only when local and remote content agree; differing untracked versions are
 conflicts, never presumed safe to overwrite.
 
-Neither direction propagates deletions. Missing previously verified cloud
+Neither direction infers deletions from missing files. Explicit Transcript only
+is persisted as `.voxray-sync.json` in folder layout or `.<call>.sync.json` in
+file layout. The version-1 object is `{"version":1,"retention":"transcript_only"}`.
+This small system file is synchronized before artifact decisions in either
+direction. It is a monotonic deletion intent for recognized call media, not a
+credential, analysis manifest or additional routing configuration. It remains
+present after removal so an offline device cannot upload or download old audio
+again. Ordinary text updates retain the existing three-way checksum baselines
+and conflict copies; a missing file alone never authorizes removal.
+
+Cleanup verifies a nonempty local transcript against the cloud size and MD5,
+checks media identities and prior baselines, then moves cloud media to Trash and
+removes local media. The intent and receipts make interrupted cleanup retryable.
+Conflicting transcripts or changed media preserve audio and report a failure.
+Previews do not write intent or delete files; `remove_media` reports planned
+retention work. Unsupported state versions stop synchronization. Clients older
+than this contract must be updated before synchronizing this library: they cannot
+be made to honor a state format they do not understand.
+
+ Missing previously verified cloud
 objects cause push to stop rather than silently recreating a moved/deleted
 record. Pull leaves local-only files in place. Single-sided changes belonging
 to the other direction are reported as `remote_changed` or `local_changed`.
@@ -230,6 +252,9 @@ same folder, read back the new parent, then update only its receipt parent while
 preserving file IDs and MD5 baselines. Do not change accepted job snapshots or
 remove receipts to force another upload. Resolve ambiguous duplicates explicitly.
 Run sync push with --dry-run for each profile after migration; existing artifacts
-must agree without upload or conflict. Intentional local transcript-only removal
-can leave verified cloud media present because synchronization does not propagate
-deletions. No cloud file should be deleted as part of routing migration.
+must agree without upload or conflict. Routing migration alone must not delete cloud files. For historical completed
+Transcript only jobs, migrate their explicitly saved retention choice to the
+versioned sync state after validating their transcript proof; then run the
+current profile's sync push and verify sync pull preview no longer offers audio.
+Do not infer that choice from missing local audio. Recorder originals remain
+owned by the recorder and are cleaned only through its verified job handoff.

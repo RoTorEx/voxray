@@ -15,6 +15,7 @@ use std::time::Duration;
 
 mod routing;
 pub use routing::mirror_path;
+mod retention_sync;
 mod synchronization;
 pub use synchronization::{Direction, synchronize};
 
@@ -272,13 +273,14 @@ pub fn sync(
     recording: Option<&Path>,
     transcript_only: bool,
 ) -> Result<Option<String>> {
+    if transcript_only {
+        retention::validate_text(&paths.transcript)?;
+        retention::remember_transcript_only(paths)?;
+    }
     if !options.enabled {
         return Ok(None);
     }
     preflight(options)?;
-    if transcript_only {
-        retention::validate_text(&paths.transcript)?;
-    }
     let client = Client::connect(config)?;
     let parent = client
         .destination(options, true)?
@@ -348,7 +350,14 @@ fn sync_with(
         paths.feedback.clone(),
         paths.manifest.clone(),
     ];
-    if !transcript_only && let Some(recording) = recording {
+    let text_only = retention_sync::reconcile(client, paths, &mut state, false)?;
+    if text_only && !transcript_only {
+        bail!("This call has synchronized Transcript only retention; use --transcript-only");
+    }
+    if !text_only
+        && !transcript_only
+        && let Some(recording) = recording
+    {
         artifacts.extend(retention::media_paths(recording, paths)?);
     }
     for path in artifacts.into_iter().filter(|p| p.is_file()) {
@@ -378,6 +387,9 @@ fn sync_with(
         )?;
         state.baselines.insert(name, local);
         storage::atomic_write(&state_path, &serde_json::to_vec(&state)?)?;
+    }
+    if text_only {
+        retention_sync::cleanup(client, paths, &mut state, false)?;
     }
     Ok(format!(
         "https://drive.google.com/drive/folders/{}",
@@ -428,6 +440,13 @@ mod tests {
                     .unwrap_or(0);
                 let mut payload = vec![0; length];
                 stream.read_exact(&mut payload).unwrap();
+                if expected.starts_with("PATCH /api/files/") {
+                    assert_eq!(
+                        serde_json::from_slice::<Value>(&payload).unwrap(),
+                        json!({"trashed":true})
+                    );
+                    assert!(headers.to_lowercase().contains("if-match: revision-one"));
+                }
                 if expected.starts_with("PUT") {
                     assert_eq!(payload, b"Speaker 1: hello");
                 }
@@ -486,6 +505,7 @@ mod tests {
             ("GET /api/files/folder1?", 404, json!({})),
             ("POST /api/files ", 200, json!({})),
             ("GET /api/files/folder1?", 200, folder()),
+            ("GET /api/files?", 200, json!({"files":[]})),
             ("GET /api/files/generateIds?", 200, json!({"ids":["file1"]})),
             ("GET /api/files/file1?", 404, json!({})),
             ("POST /upload/files?", 200, json!({})),
@@ -493,6 +513,7 @@ mod tests {
             ("GET /api/files/parent?", 200, parent()),
             ("GET /api/files/folder1?", 200, folder()),
             ("GET /api/files/folder1?", 200, folder()),
+            ("GET /api/files?", 200, json!({"files":[]})),
             ("GET /api/files/file1?", 200, verified),
         ];
         let (base, handle) = server(steps);
@@ -547,6 +568,7 @@ mod tests {
             ("GET /api/files/folder1?", 404, json!({})),
             ("POST /api/files ", 200, json!({})),
             ("GET /api/files/folder1?", 200, uploaded),
+            ("GET /api/files?", 200, json!({"files":[]})),
         ]);
         let client = Client {
             agent: ureq::AgentBuilder::new()
@@ -572,6 +594,40 @@ mod tests {
         assert_eq!(receipt.parent, "actualRoot");
         handle.join().unwrap();
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn media_trash_is_conditional_and_read_back_before_success() {
+        use super::synchronization::Remote;
+        let mut media = file();
+        media["id"] = json!("file1");
+        media["_etag"] = json!("revision-one");
+        let mut trashed = media.clone();
+        trashed["trashed"] = json!(true);
+        let (base, handle) = server(vec![
+            ("GET /api/files/file1?", 200, media.clone()),
+            ("PATCH /api/files/file1 ", 200, json!({})),
+            ("GET /api/files/file1?", 200, trashed),
+        ]);
+        let client = Client {
+            agent: ureq::AgentBuilder::new()
+                .timeout(Duration::from_secs(5))
+                .build(),
+            token: "test-token".into(),
+            api: format!("{base}/api"),
+            upload: format!("{base}/upload"),
+        };
+        client.trash(&media).unwrap();
+        handle.join().unwrap();
+        let mut changed = media.clone();
+        changed["md5Checksum"] = json!("changed");
+        let (base, handle) = server(vec![("GET /api/files/file1?", 200, changed)]);
+        let client = Client {
+            api: format!("{base}/api"),
+            ..client
+        };
+        assert!(client.trash(&media).is_err());
+        handle.join().unwrap();
     }
 
     #[test]

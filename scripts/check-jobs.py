@@ -170,6 +170,8 @@ modules = []
         cleanup = invoke("jobs", "submit", "--request", str(path))
         result = invoke("jobs", "run", "--id", cleanup["id"], environment=environment)
         assert Path(result["transcript"]).is_file()
+        sync_state = Path(result["transcript"]).parent / ".voxray-sync.json"
+        assert json.loads(sync_state.read_text()) == {"version": 1, "retention": "transcript_only"}
         assert Path(result["recording"]).exists() == upload, result
         assert result["media_removed"] == (not upload)
         assert result["stage"] == ("failed" if upload else "ready"), result
